@@ -47,6 +47,7 @@ import io.vertx.ext.web.handler.UserSessionHandler;
 import io.vertx.ext.web.handler.impl.OAuth2AuthHandlerImpl;
 import io.vertx.ext.web.handler.impl.StaticHandlerImpl;
 import io.vertx.ext.web.sstore.LocalSessionStore;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -61,6 +62,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
+import org.jcodec.api.awt.FrameGrab;
+import org.jcodec.common.FileChannelWrapper;
+import org.jcodec.common.NIOUtils;
 import ru.org.sevn.utilwt.ImageUtil;
 
 public class HttpVerticle extends AbstractVerticle {
@@ -284,14 +288,15 @@ public class HttpVerticle extends AbstractVerticle {
                     if (jobj.containsKey("webpath") && jobj.containsKey("dirpath") && jobj.containsKey("groups")) {
                         try {
                             String webpath = jobj.getString("webpath");
-                            String wpathDelim = "/"+webpath+"/";
                             String dirpath = jobj.getString("dirpath");
                             String dirpathThumb = jobj.getString("dirpathThumb");
                             String dirpathThumbBig = jobj.getString("dirpathThumbBig");
                             JsonArray groups = jobj.getJsonArray("groups");
                             GroupUserAuthorizer authorizer = new GroupUserAuthorizer(groups);
                             String wpath = "/"+webpath;
+                            String wpathDelim = "/"+webpath+"/";
 
+                            router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             router.route(wpath+"/*").handler(oauth2);
                             router.route(wpath).handler(ctx -> {
                                 redirect(ctx.request(), wpath + "/index.html");
@@ -328,13 +333,55 @@ public class HttpVerticle extends AbstractVerticle {
                                                 newRoute = wpath + "/thumbg/" + thumbName;
                                             }
                                             if (height > 0) {
-                                                File img = new File(dirpath, thumbName);
+                                                final File img = new File(dirpath, thumbName);
                                                 if (img.exists()) {
                                                     try {
                                                         String contentType = Files.probeContentType(img.toPath());
                                                         if (contentType != null && contentType.startsWith("image")) {
                                                             File thumbFile = new File(dirpathTh, thumbName);
-                                                            if (makeThumbs(img, thumbFile, height) != null) {
+                                                            if (makeThumbs( new ImageIconSupplier() {
+
+                                                                @Override
+                                                                public ImageIcon getImageIcon() {
+                                                                    return new ImageIcon(img.getPath());
+                                                                }
+                                                            }, thumbFile, height) != null) {
+                                                                ctx.reroute(newRoute);
+                                                                return;
+                                                            }
+                                                        } else if (contentType != null && contentType.startsWith("video")) {
+                                                            thumbName += ".png";
+                                                            newRoute += ".png";
+                                                            File thumbFile = new File(dirpathTh, thumbName);
+                                                            if (makeThumbs( new ImageIconSupplier() {
+
+                                                                @Override
+                                                                public ImageIcon getImageIcon() {
+                                                                    try {
+                                                                        FileChannelWrapper grabch = NIOUtils.readableFileChannel(img);
+                                                                        BufferedImage frame = null;
+                                                                        try { 
+                                                                            FrameGrab grab = new FrameGrab(grabch);
+                                                                            for (int i = 0; i < 50; i++) {
+                                                                                grab.seekToFrameSloppy(50);
+                                                                                try {
+                                                                                    frame = grab.getFrame();
+                                                                                } catch (Exception e) {
+                                                                                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                                                                                }
+                                                                            }
+                                                                        } finally {
+                                                                            NIOUtils.closeQuietly(grabch);
+                                                                        }
+                                                                        if (frame != null) {
+                                                                            return new ImageIcon(frame);
+                                                                        }
+                                                                    } catch (Exception ex) {
+                                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                                                    }
+                                                                    return null;
+                                                                }
+                                                            }, thumbFile, height) != null) {
                                                                 ctx.reroute(newRoute);
                                                                 return;
                                                             }
@@ -344,7 +391,7 @@ public class HttpVerticle extends AbstractVerticle {
                                                     }
                                                 }
                                             }
-                                            //TODO cache image
+                                            //TODO cache image refactor
                                         }
                                         ctx.next();
                                     })
@@ -395,8 +442,12 @@ public class HttpVerticle extends AbstractVerticle {
         
         startServer(router);
     }
-    
-    private static File makeThumbs(File img, File thumbimg, int height) {
+
+    public static interface ImageIconSupplier {
+        ImageIcon getImageIcon();
+    }
+    private static File makeThumbs(ImageIconSupplier imgSupplier, File thumbimg, int height) {
+        //BufferedImage frame = FrameGrab.getFrame(new File("/Users/jovi/Movies/test.mp4"), i);
         File ret = null;
         if (!thumbimg.exists()) {
             File thumbdir = thumbimg.getParentFile();
@@ -405,13 +456,11 @@ public class HttpVerticle extends AbstractVerticle {
             }
             
             System.err.println("generate thumb>>>" + thumbimg);
-            ImageIcon origimg = new ImageIcon(img.getPath());
-            ImageIcon ii;
-            ii = ImageUtil.getScaledImageIconHeight(origimg, height, false);
             try {
+                ImageIcon ii = ImageUtil.getScaledImageIconHeight(imgSupplier.getImageIcon(), height, false);
                 ImageIO.write(ImageUtil.getBufferedImage(ii), "png", thumbimg);
                 ret = thumbimg;
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
@@ -525,6 +574,23 @@ public class HttpVerticle extends AbstractVerticle {
             } else {
                 rc.fail(403);
             }
+        }
+    }
+    public static class RedirectUnAuthParamPageHandler implements io.vertx.core.Handler<RoutingContext> {
+        private final String wpath;
+        
+        public RedirectUnAuthParamPageHandler (String p) {
+            this.wpath = p;
+        }
+        @Override
+        public void handle(RoutingContext ctx) {
+            if (ctx.user() == null) {
+                if (ctx.request().params().size() > 0) {
+                    ctx.reroute(wpath);
+                    return;
+                }
+            }
+            ctx.next();        
         }
     }
     public static class ExtraUser implements User {
