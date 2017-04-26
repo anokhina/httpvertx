@@ -49,6 +49,7 @@ import io.vertx.ext.web.handler.impl.StaticHandlerImpl;
 import io.vertx.ext.web.sstore.LocalSessionStore;
 import java.io.File;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -58,6 +59,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
+import javax.swing.ImageIcon;
+import ru.org.sevn.utilwt.ImageUtil;
 
 public class HttpVerticle extends AbstractVerticle {
     private static final int KB = 1024;
@@ -280,7 +284,10 @@ public class HttpVerticle extends AbstractVerticle {
                     if (jobj.containsKey("webpath") && jobj.containsKey("dirpath") && jobj.containsKey("groups")) {
                         try {
                             String webpath = jobj.getString("webpath");
+                            String wpathDelim = "/"+webpath+"/";
                             String dirpath = jobj.getString("dirpath");
+                            String dirpathThumb = jobj.getString("dirpathThumb");
+                            String dirpathThumbBig = jobj.getString("dirpathThumbBig");
                             JsonArray groups = jobj.getJsonArray("groups");
                             GroupUserAuthorizer authorizer = new GroupUserAuthorizer(groups);
                             String wpath = "/"+webpath;
@@ -293,6 +300,64 @@ public class HttpVerticle extends AbstractVerticle {
                                     new UserAuthorizedHandler(authorizer, ctx -> {
                                         ctx.response().putHeader("content-type", "text/html").end("Dynamic page for " + webpath);
                                     })
+                            );
+                            router.route(wpath+"/*").handler(
+                                    new UserAuthorizedHandler(authorizer, ctx -> {
+                                        HttpServerRequest r = ctx.request();
+                                        String imgThmb = r.params().get("imgThmb");
+                                        if (imgThmb != null) {
+                                            
+                                            String path = r.path();
+                                            try {
+                                                path = java.net.URLDecoder.decode(r.path(), "UTF-8");
+                                            } catch (UnsupportedEncodingException ex) {
+                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                            }
+                                            
+                                            int height = 0;
+                                            String dirpathTh = "";
+                                            String newRoute = "";
+                                            String thumbName = path.substring(wpathDelim.length());
+                                            if ("sm".equals(imgThmb)) {
+                                                height = 160;
+                                                dirpathTh = dirpathThumb;
+                                                newRoute = wpath + "/thumb/" + thumbName;
+                                            } else if ("bg".equals(imgThmb)) {
+                                                height = 736;
+                                                dirpathTh = dirpathThumbBig;
+                                                newRoute = wpath + "/thumbg/" + thumbName;
+                                            }
+                                            if (height > 0) {
+                                                File img = new File(dirpath, thumbName);
+                                                if (img.exists()) {
+                                                    try {
+                                                        String contentType = Files.probeContentType(img.toPath());
+                                                        if (contentType != null && contentType.startsWith("image")) {
+                                                            File thumbFile = new File(dirpathTh, thumbName);
+                                                            if (makeThumbs(img, thumbFile, height) != null) {
+                                                                ctx.reroute(newRoute);
+                                                                return;
+                                                            }
+                                                        }
+                                                    } catch (IOException ex) {
+                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                                    }
+                                                }
+                                            }
+                                            //TODO cache image
+                                        }
+                                        ctx.next();
+                                    })
+                            );
+                            router.route(wpath+"/thumb/*").handler(
+                                    new UserAuthorizedHandler(authorizer, 
+                                        new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpathThumb).getAbsolutePath())
+                                    )
+                            );
+                            router.route(wpath+"/thumbg/*").handler(
+                                    new UserAuthorizedHandler(authorizer, 
+                                        new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpathThumbBig).getAbsolutePath())
+                                    )
                             );
                             router.route(wpath+"/*").handler(
                                     new UserAuthorizedHandler(authorizer, 
@@ -329,6 +394,31 @@ public class HttpVerticle extends AbstractVerticle {
         });
         
         startServer(router);
+    }
+    
+    private static File makeThumbs(File img, File thumbimg, int height) {
+        File ret = null;
+        if (!thumbimg.exists()) {
+            File thumbdir = thumbimg.getParentFile();
+            if (!thumbdir.exists()) {
+                thumbdir.mkdirs();
+            }
+            
+            System.err.println("generate thumb>>>" + thumbimg);
+            ImageIcon origimg = new ImageIcon(img.getPath());
+            ImageIcon ii;
+            ii = ImageUtil.getScaledImageIconHeight(origimg, height, false);
+            try {
+                ImageIO.write(ImageUtil.getBufferedImage(ii), "png", thumbimg);
+                ret = thumbimg;
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        } else {
+            ret = thumbimg;
+        }
+        return ret;
     }
     
     public static class NReachableFSStaticHandlerImpl extends StaticHandlerImpl {
