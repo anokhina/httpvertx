@@ -166,11 +166,13 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 try {
                     Connection c = DriverManager.getConnection(getConnectionString());
                     try {
-                        PreparedStatement pstmt = c.prepareStatement("SELECT * FROM CHAT_MSG WHERE MSG_DATE BETWEEN ? AND ? AND FROM_ID = ? OR TO_ID = ? ORDER BY MSG_DATE DESC");
+                        PreparedStatement pstmt = c.prepareStatement("SELECT DISTINCT * FROM CHAT_MSG WHERE MSG_DATE BETWEEN ? AND ? AND FROM_ID = ? AND TO_ID = ? OR FROM_ID = ? AND TO_ID = ? ORDER BY MSG_DATE DESC");
                         pstmt.setDate(1, new java.sql.Date(cfrom.getTimeInMillis()));
                         pstmt.setDate(2, new java.sql.Date(cto.getTimeInMillis()));
                         pstmt.setString(3, uidfrom);
-                        pstmt.setString(4, uidfrom);
+                        pstmt.setString(4, uidto);
+                        pstmt.setString(5, uidto);
+                        pstmt.setString(6, uidfrom);
                         
                         ResultSet rs = pstmt.executeQuery();
                         while (rs.next()) {
