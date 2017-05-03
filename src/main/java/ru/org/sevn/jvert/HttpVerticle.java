@@ -769,10 +769,21 @@ public class HttpVerticle extends AbstractVerticle {
         }
         
         public String getId() {
+            String ret = null;
             if (extraData != null) {
-                return extraData.getString("id", null);
+                ret = extraData.getString("id", null);
             }
-            return null;
+            if (ret == null) {
+                if (localExtraData != null) {
+                    ret = localExtraData.getString("id", null);
+                }
+            }
+            if (ret == null) {
+                if (user.principal() != null) {
+                    ret = user.principal().getString("id", null);
+                }
+            }
+            return ret;
         }
 
         public JsonObject getExtraData() {

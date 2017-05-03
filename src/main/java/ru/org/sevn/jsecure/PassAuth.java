@@ -30,6 +30,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 public class PassAuth {
+    //http://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html
     //https://tools.ietf.org/html/rfc2898#page-8
     public static final String ALGORITHM = "PBKDF2WithHmacSHA512";
     private static final int SIZE = 512;

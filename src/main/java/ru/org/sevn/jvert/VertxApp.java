@@ -25,3 +25,4 @@ public class VertxApp {
         });
     }    
 }
+//http://www.programcreek.com/java-api-examples/index.php?api=io.vertx.ext.auth.jdbc.JDBCAuth

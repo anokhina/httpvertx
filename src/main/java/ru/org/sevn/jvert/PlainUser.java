@@ -28,7 +28,7 @@ import io.vertx.ext.auth.AuthProvider;
  * @author avn
  */
 public class PlainUser extends AbstractUser implements ClusterSerializable {
-    public static final String USERNAME = "username";
+    public static final String USERNAME = "id";
     private JsonObject principal;
     private AuthProvider authProvider;
 

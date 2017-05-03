@@ -18,17 +18,28 @@ package ru.org.sevn.jvert;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.ext.web.RoutingContext;
+import java.io.File;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import static ru.org.sevn.jvert.HttpVerticle.secureSet;
 
 public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 
-    private MessageStore messageStore = new MessageStore();
+    private MessageStore messageStore = new SQLiteMessageStore("vertChat.db");
     
     static class Message {
         private Date date = new Date();
@@ -40,6 +51,12 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
             setFrom(uidfrom);
             setTo(uidto);
             setMsg(msgStr);
+        }
+        private Message(String uidfrom, String uidto, String msgStr, Date d) {
+            setFrom(uidfrom);
+            setTo(uidto);
+            setMsg(msgStr);
+            setDate(d);
         }
 
         public String getFrom() {
@@ -75,7 +92,160 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         }
         
     }
-    static class MessageStore {
+    
+    interface MessageStore {
+        Collection<Message> getMessages(String uidfrom, String uidto, Date ... days);
+        int addMessage(String uidfrom, String uidto, String msgStr);
+        Collection<String> getChats(String uidfrom);
+    }
+    
+    static class SQLiteMessageStore implements MessageStore {
+        
+        private final boolean loaded;
+        private final String filePath;
+        
+        public SQLiteMessageStore(String filePath) {
+            this.filePath = filePath;
+            boolean l = false;
+            try {
+                Class.forName("org.sqlite.JDBC");
+                l = true;
+            } catch (ClassNotFoundException ex) {
+                Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            loaded = l;
+            File dbFile = new File(filePath);
+            if (!dbFile.exists()) {
+                initDB();
+            }
+        }
+        
+        protected void initDB() {
+            if (loaded) {
+                try {
+                    Connection c = DriverManager.getConnection(getConnectionString());
+                    try {
+                        Statement stmt = c.createStatement();
+                        String sql = "CREATE TABLE CHAT_MSG " +
+                                     "(ID INTEGER PRIMARY KEY  AUTOINCREMENT   NOT NULL," +
+                                     " FROM_ID        TEXT    NOT NULL, " + 
+                                     " TO_ID          TEXT    NOT NULL, " + 
+                                     " MSG            TEXT    NOT NULL, " + 
+                                     " MSG_DATE       DATE)"; 
+                        stmt.executeUpdate(sql);
+                        stmt.close();
+                    } finally {
+                        c.close();                    
+                    }
+                } catch (SQLException ex) {
+                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }
+        
+        protected String getConnectionString() {
+            return "jdbc:sqlite:"+filePath;
+        }
+
+        @Override
+        public Collection<Message> getMessages(String uidfrom, String uidto, Date... days) {
+            ArrayList<Message> ret = new ArrayList<>();
+            Date day = new Date();
+            if (days.length > 0 && days[0] != null) {
+                day = days[0];
+            }
+            Calendar cfrom = Calendar.getInstance();
+            Calendar cto = Calendar.getInstance();
+            cfrom.setTime(day);
+            cfrom.set(Calendar.HOUR_OF_DAY, 0);
+            cfrom.set(Calendar.MINUTE, 0);
+            cfrom.set(Calendar.SECOND, 0);
+            cto.setTime(cfrom.getTime());
+            cto.add(Calendar.DAY_OF_YEAR, 1);
+            if (loaded) {
+                try {
+                    Connection c = DriverManager.getConnection(getConnectionString());
+                    try {
+                        PreparedStatement pstmt = c.prepareStatement("SELECT * FROM CHAT_MSG WHERE MSG_DATE BETWEEN ? AND ? AND FROM_ID = ? OR TO_ID = ? ORDER BY MSG_DATE DESC");
+                        pstmt.setDate(1, new java.sql.Date(cfrom.getTimeInMillis()));
+                        pstmt.setDate(2, new java.sql.Date(cto.getTimeInMillis()));
+                        pstmt.setString(3, uidfrom);
+                        pstmt.setString(4, uidfrom);
+                        
+                        ResultSet rs = pstmt.executeQuery();
+                        while (rs.next()) {
+                            Message msg = new Message(rs.getString("FROM_ID"), rs.getString("TO_ID"), rs.getString("MSG"), rs.getDate("MSG_DATE"));
+                            ret.add(msg);
+                        }
+                        pstmt.close();
+                    } finally {
+                        c.close();
+                    }
+                } catch (SQLException ex) {
+                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            return ret;
+        }
+
+        @Override
+        public int addMessage(String uidfrom, String uidto, String msgStr) {
+            int ret = 0;
+            if (loaded) {
+                try {
+                    Connection c = DriverManager.getConnection(getConnectionString());
+                    try {
+
+                        PreparedStatement pstmt = c.prepareStatement("INSERT INTO CHAT_MSG (FROM_ID, TO_ID, MSG, MSG_DATE) VALUES (?, ?, ?, ?)");
+                        pstmt.setString(1, uidfrom);
+                        pstmt.setString(2, uidto);
+                        pstmt.setString(3, msgStr);
+                        pstmt.setDate(4, new java.sql.Date(new Date().getTime()));
+                        ret = pstmt.executeUpdate();
+                        pstmt.close();
+                    } finally {
+                        c.close();
+                    }
+                } catch (SQLException ex) {
+                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                
+            }
+            return ret;
+        }
+
+        @Override
+        public Collection<String> getChats(String uidfrom) {
+            HashSet<String> ret = new HashSet<>();
+            if (loaded) {
+                try {
+                    Connection c = DriverManager.getConnection(getConnectionString());
+                    try {
+                        PreparedStatement pstmt = c.prepareStatement("SELECT DISTINCT FROM_ID, TO_ID FROM CHAT_MSG WHERE FROM_ID = ? OR TO_ID = ?");
+                        pstmt.setString(1, uidfrom);
+                        pstmt.setString(2, uidfrom);
+                        
+                        ResultSet rs = pstmt.executeQuery();
+                        while (rs.next()) {
+                            String from = rs.getString("FROM_ID");
+                            String to = rs.getString("TO_ID");
+                            ret.add(from);
+                            ret.add(to);
+                        }
+                        pstmt.close();
+                    } finally {
+                        c.close();
+                    }
+                } catch (SQLException ex) {
+                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            return ret;
+        }
+        
+    }
+    
+    static class MemoryMessageStore implements MessageStore {
         public HashMap<String, HashMap<String, List<Message>>> map = new HashMap();
         
         public Collection<Message> getMessages(String uidfrom, String uidto, Date ... days) {
@@ -105,11 +275,12 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
             }
             return ret;
         }
-        public void addMessage(String uidfrom, String uidto, String msgStr) {
+        public int addMessage(String uidfrom, String uidto, String msgStr) {
             Message msg = new Message(uidfrom, uidto, msgStr);
             
             getUserChat(uidfrom, uidto, true).add(msg);
             getUserChat(uidto, uidfrom, true).add(msg);
+            return 1;
         }
         
         public Collection<String> getChats(String uidfrom) {
