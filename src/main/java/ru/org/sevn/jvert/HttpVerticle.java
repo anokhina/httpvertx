@@ -40,7 +40,9 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.Session;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.CookieHandler;
+import io.vertx.ext.web.handler.FormLoginHandler;
 import io.vertx.ext.web.handler.OAuth2AuthHandler;
+import io.vertx.ext.web.handler.RedirectAuthHandler;
 import io.vertx.ext.web.handler.SessionHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.handler.UserSessionHandler;
@@ -66,6 +68,7 @@ import javax.swing.ImageIcon;
 import org.jcodec.api.awt.FrameGrab;
 import org.jcodec.common.FileChannelWrapper;
 import org.jcodec.common.NIOUtils;
+import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.utilwt.ImageUtil;
 
 public class HttpVerticle extends AbstractVerticle {
@@ -80,6 +83,7 @@ public class HttpVerticle extends AbstractVerticle {
     private String appName = "SV-www";
     private JsonArray webs;
     private SimpleUserMatcher userMatcher;
+    private String saltPrefix = "salt";
 
     public boolean isUseSsl() {
         return useSsl;
@@ -111,6 +115,16 @@ public class HttpVerticle extends AbstractVerticle {
     protected void configService() {
         try {
             config = new JsonObject(new String(Files.readAllBytes(getConfigJsonPath()), "UTF-8"));
+            if (config.containsKey("auth")) {
+                try {
+                    JsonObject auth = config.getJsonObject("auth", null);
+                    if (auth != null) {
+                        saltPrefix = auth.getString("salt", "salt");
+                    }
+                } catch (Exception e) {
+                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
             if (config.containsKey("webs")) {
                 try {
                     webs = config.getJsonArray("webs", null);
@@ -220,24 +234,14 @@ public class HttpVerticle extends AbstractVerticle {
     }
     
     static class SimpleUserMatcher implements UserMatcher {
-        private HashMap<String, Collection> userGroups = new HashMap<>();
+        private HashMap<String, JsonObject> userGroups = new HashMap<>();
 
         public SimpleUserMatcher(JsonArray arr) {
             for (Object o : arr) {
                 if (o instanceof JsonObject) {
                     JsonObject jobj = (JsonObject) o;
                     if (jobj.containsKey("id")) {
-                        HashSet<String> grps = new HashSet();
-                        try {
-                            if (jobj.containsKey("groups")) {
-                                for (Object g : jobj.getJsonArray("groups")) {
-                                    grps.add(g.toString());
-                                }
-                            }
-                            userGroups.put(jobj.getString("id"), grps);
-                        } catch (Exception ex) {
-                            Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                        }
+                        userGroups.put(jobj.getString("id"), jobj);
                     }
                 }
             }
@@ -246,9 +250,36 @@ public class HttpVerticle extends AbstractVerticle {
         public Collection<String> getGroups(User u) {
             if (u instanceof ExtraUser) {
                 ExtraUser user = (ExtraUser)u;
+                JsonObject jobj = userGroups.get(user.getId());
+                if (jobj != null) {
+                    HashSet<String> grps = new HashSet();
+                    try {
+                        if (jobj.containsKey("groups")) {
+                            for (Object g : jobj.getJsonArray("groups")) {
+                                grps.add(g.toString());
+                            }
+                        }
+                        return grps;
+                    } catch (Exception ex) {
+                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public JsonObject getUserInfo(User u) {
+            if (u instanceof ExtraUser) {
+                ExtraUser user = (ExtraUser)u;
                 return userGroups.get(user.getId());
             }
             return null;
+        }
+
+        @Override
+        public JsonObject getUserInfo(String uid) {
+            return userGroups.get(uid);
         }
         
     }
@@ -274,11 +305,23 @@ public class HttpVerticle extends AbstractVerticle {
         oauth2.addAuthority("profile");
         oauth2.setupCallback(router.get("/auth"));
 
+        FileAuthProvider fileAuthProvider = new FileAuthProvider(userMatcher, new PassAuth(saltPrefix));
+        router.route("/www/login").handler(RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html"));
+        router.route("/www/login").handler(ctx -> { ctx.reroute("/"); });
+        router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
+                
         router.route("/logout").handler(context -> {
             context.clearUser();
             context.response().putHeader("location", "/").setStatusCode(302).end();
         });
         
+        
+        {
+            String servPath = "/chat/";
+            router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
+            router.route(servPath+"*").handler(oauth2);
+            router.route(servPath+"*").handler(new ChatHandler());
+        }
         //TODO refresh settings
         
         final ArrayList<String> websList = new ArrayList<>();
@@ -408,79 +451,78 @@ public class HttpVerticle extends AbstractVerticle {
                                         new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpathThumbBig).getAbsolutePath())
                                     )
                             );
-                            router.route(wpath+"/*").handler(
-                                    new UserAuthorizedHandler(authorizer, ctx -> {
-                                        File dirpathHtmlCacheFile = null;
-                                        if (dirpathHtmlCache != null ) {
-                                            dirpathHtmlCacheFile = new File(dirpathHtmlCache);
+                            if (dirpathHtmlCache == null) {
+                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html");                                
+                            } else {
+                                router.route(wpath+"/*").handler(
+                                        new UserAuthorizedHandler(authorizer, ctx -> {
+                                            File dirpathHtmlCacheFile = new File(dirpathHtmlCache);;
                                             if (dirpathHtmlCacheFile.exists() && dirpathHtmlCacheFile.canWrite()) {
                                             } else {
                                                 Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can''t cache html into {0}", dirpathHtmlCacheFile.getAbsolutePath());
                                                 dirpathHtmlCacheFile = null;
                                             }
-                                        } else {
-                                            Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html");
-                                        }
-                                        String path = ctx.request().path();
-                                        try {
-                                            path = java.net.URLDecoder.decode(path, "UTF-8");
-                                        } catch (UnsupportedEncodingException ex) {
-                                            Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                        }
-                                        if (path.endsWith(".html")) {
-                                            path = path.substring(wpathDelim.length());
-                                            File f = new File(dirpath, path);
-                                            if (f.exists()) { //TODO cache refactor
-                                                
-                                                String contentType = null;
-                                                try {
-                                                    contentType = Files.probeContentType(Paths.get(f.getPath()));
-                                                } catch (IOException ex) {
-                                                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                }
-                                                if (contentType != null) {
-                                                    ctx.response().putHeader("content-type", contentType);
-                                                    VertxOutputStream vos = new VertxOutputStream(ctx.response());
+                                            String path = ctx.request().path();
+                                            try {
+                                                path = java.net.URLDecoder.decode(path, "UTF-8");
+                                            } catch (UnsupportedEncodingException ex) {
+                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                            }
+                                            if (path.endsWith(".html")) {
+                                                path = path.substring(wpathDelim.length());
+                                                File f = new File(dirpath, path);
+                                                if (f.exists()) { //TODO cache refactor
+
+                                                    String contentType = null;
                                                     try {
-                                                        ctx.response().setChunked(true);
-                                                        File cache = null;
-                                                        if (dirpathHtmlCacheFile != null) {
-                                                            cache = new File(dirpathHtmlCacheFile, path);
-                                                        }
-                                                        String fileCont;
-                                                        if (cache != null && cache.exists()) {
-                                                            fileCont = new String(Files.readAllBytes(cache.toPath()), "UTF-8");
-                                                        } else {
-                                                            fileCont = new String(Files.readAllBytes(f.toPath()), "UTF-8");
-                                                            fileCont = fileCont.replace("<!--${__htmlCmtE__}", "");
-                                                            fileCont = fileCont.replace("${__htmlCmtB__}-->", "<!--");
-                                                            if (cache != null) {
-                                                                File parFile = cache.getParentFile();
-                                                                try {
-                                                                    if (!parFile.exists()) {
-                                                                        parFile.mkdirs();
-                                                                    }
-                                                                    Files.write(cache.toPath(), fileCont.getBytes("UTF-8"));
-                                                                } catch (IOException ex1) {
-                                                                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html into " + cache.getAbsolutePath(), ex1);
-                                                                }       
-                                                            }
-                                                        }
-                                                        vos.write(fileCont.getBytes("UTF-8"));
-                                                        vos.close();
+                                                        contentType = Files.probeContentType(Paths.get(f.getPath()));
                                                     } catch (IOException ex) {
                                                         Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                        ctx.fail(ex);
+                                                    }
+                                                    if (contentType != null) {
+                                                        ctx.response().putHeader("content-type", contentType);
+                                                        VertxOutputStream vos = new VertxOutputStream(ctx.response());
+                                                        try {
+                                                            ctx.response().setChunked(true);
+                                                            File cache = null;
+                                                            if (dirpathHtmlCacheFile != null) {
+                                                                cache = new File(dirpathHtmlCacheFile, path);
+                                                            }
+                                                            String fileCont;
+                                                            if (cache != null && cache.exists()) {
+                                                                fileCont = new String(Files.readAllBytes(cache.toPath()), "UTF-8");
+                                                            } else {
+                                                                fileCont = new String(Files.readAllBytes(f.toPath()), "UTF-8");
+                                                                fileCont = fileCont.replace("<!--${__htmlCmtE__}", "");
+                                                                fileCont = fileCont.replace("${__htmlCmtB__}-->", "<!--");
+                                                                if (cache != null) {
+                                                                    File parFile = cache.getParentFile();
+                                                                    try {
+                                                                        if (!parFile.exists()) {
+                                                                            parFile.mkdirs();
+                                                                        }
+                                                                        Files.write(cache.toPath(), fileCont.getBytes("UTF-8"));
+                                                                    } catch (IOException ex1) {
+                                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html into " + cache.getAbsolutePath(), ex1);
+                                                                    }       
+                                                                }
+                                                            }
+                                                            vos.write(fileCont.getBytes("UTF-8"));
+                                                            vos.close();
+                                                        } catch (IOException ex) {
+                                                            Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                                            ctx.fail(ex);
+                                                        }
+
+                                                        return;
                                                     }
 
-                                                    return;
                                                 }
-
                                             }
-                                        }
-                                        ctx.next();
-                                    })
-                            );
+                                            ctx.next();
+                                        })
+                                );
+                            }
                             router.route(wpath+"/*").handler(
                                     new UserAuthorizedHandler(authorizer, 
                                         new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpath).getAbsolutePath())
@@ -506,6 +548,9 @@ public class HttpVerticle extends AbstractVerticle {
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+simpleAnswerString(ctx));
         });
         
+        //webroot
+        router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false));
+        
         router.get("/*").failureHandler(ctx -> {
             //TODO error template
             int statusCode = ctx.statusCode();
@@ -524,8 +569,10 @@ public class HttpVerticle extends AbstractVerticle {
     private static File makeThumbs(ImageIconSupplier imgSupplier, File thumbimg, int height) {
         //BufferedImage frame = FrameGrab.getFrame(new File("/Users/jovi/Movies/test.mp4"), i);
         File ret = null;
+        // TODO Exception
         if (!thumbimg.exists()) {
             File thumbdir = thumbimg.getParentFile();
+            // TODO Exception
             if (!thumbdir.exists()) {
                 thumbdir.mkdirs();
             }
@@ -671,7 +718,29 @@ public class HttpVerticle extends AbstractVerticle {
     public static class ExtraUser implements User {
         private final User user;
         private JsonObject extraData;
+        private JsonObject localExtraData;
         private Set<String> groups = new HashSet<>();
+        
+        public static ExtraUser upgradeUserInfo(UserMatcher userMatcher, ExtraUser euser) {
+            Collection<String> groups = userMatcher.getGroups(euser);
+            if (groups != null) {
+                euser.setLocalExtraData(userMatcher.getUserInfo(euser));
+                euser.getGroups().addAll(groups);
+                return euser;
+            }
+            return null;
+        }
+        public static void upgradeUser(UserMatcher userMatcher, ExtraUser euser, RoutingContext context) throws IOException {
+            if (upgradeUserInfo(userMatcher, euser)!= null) {
+                context.setUser(euser);
+                Session session = context.session();
+                if (session != null) {
+                    // the user has upgraded from unauthenticated to authenticated
+                    // session should be upgraded as recommended by owasp
+                    session.regenerateId();
+                }
+            }
+        }
         
         public ExtraUser(User u) {
             user = u;
@@ -721,10 +790,20 @@ public class HttpVerticle extends AbstractVerticle {
         public void setGroups(Set<String> groups) {
             this.groups = groups;
         }
+
+        public JsonObject getLocalExtraData() {
+            return localExtraData;
+        }
+
+        public void setLocalExtraData(JsonObject localExtraData) {
+            this.localExtraData = localExtraData;
+        }
         
     }    
     public static interface UserMatcher {
         Collection<String> getGroups(User u);
+        JsonObject getUserInfo(User u);
+        JsonObject getUserInfo(String uid);
     }
     static class GoogleUserOAuth2AuthHandlerImpl extends OAuth2AuthHandlerImpl {
 
@@ -743,7 +822,7 @@ public class HttpVerticle extends AbstractVerticle {
             if (user != null) {
                 if (user instanceof AccessTokenImpl) {
                     try {
-                        upgradeUser((AccessTokenImpl)user, ctx);
+                        upgradeGoogleUser((AccessTokenImpl)user, ctx);
                         user = ctx.user();
                     } catch (IOException ex) {
                         Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
@@ -759,23 +838,15 @@ public class HttpVerticle extends AbstractVerticle {
             }
         }
         
-        private void upgradeUser(AccessTokenImpl user, RoutingContext context) throws IOException {
+        private void upgradeGoogleUser(AccessTokenImpl user, RoutingContext context) throws IOException {
             GoogleCredential credential = new GoogleCredential().setAccessToken(user.principal().getString("access_token"));
             Oauth2 oauth2 = new Oauth2.Builder(new NetHttpTransport(), new JacksonFactory(), credential).setApplicationName(appName).build();       
             Userinfoplus userinfo = oauth2.userinfo().get().execute();
+            
             ExtraUser euser = new ExtraUser(user);
             euser.setExtraData(new JsonObject(userinfo.toPrettyString()));
-            Collection<String> groups = userMatcher.getGroups(euser);
-            if (groups != null) {
-                euser.getGroups().addAll(groups);
-                context.setUser(euser);
-                Session session = context.session();
-                if (session != null) {
-                    // the user has upgraded from unauthenticated to authenticated
-                    // session should be upgraded as recommended by owasp
-                    session.regenerateId();
-                }
-            }
+         
+            ExtraUser.upgradeUser(userMatcher, euser, context);
         }
         
         protected void authoriseMe(ExtraUser user, RoutingContext context) {
@@ -785,6 +856,7 @@ public class HttpVerticle extends AbstractVerticle {
 
     }
     //--------------------------
+
     private static String simpleAnswerString(RoutingContext context) {
         User user = context.user();
         HttpServerRequest r = context.request();
