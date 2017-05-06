@@ -63,6 +63,9 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import org.jcodec.api.awt.FrameGrab;
@@ -351,6 +354,62 @@ public class HttpVerticle extends AbstractVerticle {
                                         ctx.response().putHeader("content-type", "text/html").end("Dynamic page for " + webpath);
                                     })
                             );
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, ctx -> {
+                                HttpServerRequest r = ctx.request();
+                                String zipMode = r.getParam("zip");
+                                if (zipMode != null) {
+                                    String path = r.path();
+                                    path = path.substring(wpathDelim.length());
+                                    try {
+                                        path = java.net.URLDecoder.decode(path, "UTF-8");
+                                    } catch (UnsupportedEncodingException ex) {
+                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                    }
+                                    File dir = new File(dirpath, path);
+                                    if (dir.exists()) {
+                                        if (!dir.isDirectory()) {
+                                            dir = dir.getParentFile();
+                                        }
+                                        if (dir != null) {
+                                            try {
+                                                if ("1".equals(zipMode)) {
+                                                    ctx.fail(HttpResponseStatus.FORBIDDEN.code());
+                                                } else {
+                                                    HttpServerResponse response = ctx.response();
+                                                    String name = dir.getName();
+                                                    String fileName = name + ".zip";
+                                                    String encodeFileName = new String(fileName.getBytes("UTF-8"), "ISO-8859-1");                                                
+                                                    response.setChunked(true)
+                                                        .putHeader("content-type", "application/zip")
+                                                        .putHeader("Content-Disposition", "filename=\"" + encodeFileName + "\"");
+    //                                                    .putHeader("Content-Disposition", "form-data; name=\"" + name + "\"; filename=\"" + fileName + "\"");
+
+                                                    ZipOutputStream zos = new ZipOutputStream(new VertxOutputStream(response));
+                                                    zos.setLevel(Deflater.DEFLATED);
+                                                    for(File fl : dir.listFiles()) {
+                                                        String nm = fl.getName(); 
+                                                        if (fl.isDirectory()) {}
+                                                        else if (nm.startsWith("_") || nm.startsWith(".")) {}
+                                                        else {
+                                                            ZipEntry ze = new ZipEntry(nm);
+                                                            zos.putNextEntry(ze);
+                                                            zos.write(Files.readAllBytes(fl.toPath()));
+                                                            zos.closeEntry();
+                                                        }
+                                                    }
+                                                    zos.close();
+                                                }
+                                            } catch (IOException ex) {
+                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+                                            }
+                                        }
+                                    } else {
+                                        ctx.fail(HttpResponseStatus.NOT_FOUND.code());
+                                    }
+                                } else {
+                                    ctx.next();
+                                }
+                            }));
                             router.route(wpath+"/*").handler(
                                     new UserAuthorizedHandler(authorizer, ctx -> {
                                         HttpServerRequest r = ctx.request();
@@ -883,6 +942,7 @@ public class HttpVerticle extends AbstractVerticle {
 
         String resp = "<pre>"
                 + r.absoluteURI() + "\n"
+                + r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path() + "\n"
                 + r.uri() + "\n"
                 + r.path() + "\n"
                 + r.query() + "\n"

@@ -17,6 +17,7 @@ package ru.org.sevn.jvert;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
+import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
 import java.io.File;
 import java.sql.Connection;
@@ -25,6 +26,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -42,6 +44,8 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
     private MessageStore messageStore = new SQLiteMessageStore("vertChat.db");
     
     static class Message {
+        //TODO
+        private boolean read;
         private Date date = new Date();
         private String from;
         private String to;
@@ -313,6 +317,12 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 }
                 
                 StringBuilder sb = new StringBuilder();
+                //url=http://webdesign.about.com/
+                HttpServerRequest r = ctx.request();
+                String url = r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path() + "?chatTo=" + params.get("chatTo");
+                sb.append("<html><head>");
+                sb.append("<meta http-equiv=\"refresh\" content=\"10;url='"+url+"'\">");
+                sb.append("</head><body>");
                 sb.append("<pre>");
                 sb.append("Chats:\nchatTo=\nchatMsg=\n");
                 sb.append("from:").append(user.getId()).append("\n");
@@ -322,10 +332,12 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 sb.append("refresh").append("</a>").append("\n");
                 
                 for(Message m : messageStore.getMessages(user.getId(), params.get("chatTo"))) {
+                    sb.append(dateFormat.format(m.getDate())).append(">>>");
                     sb.append(m.getFrom()).append(":");
                     sb.append(m.getMsg()).append("\n");
                 }
                 sb.append("</pre>");
+                sb.append("</body></html>");
                 
                 secureSet(ctx.response());
                 ctx.response().putHeader("content-type", "text/html").end(sb.toString());
@@ -348,4 +360,6 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         }
 
     }
+    
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 }
