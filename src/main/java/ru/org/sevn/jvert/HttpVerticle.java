@@ -246,17 +246,7 @@ public class HttpVerticle extends AbstractVerticle {
 
         FileAuthProvider fileAuthProvider = new FileAuthProvider(userMatcher, new PassAuth(saltPrefix));
         router.route("/www/login").handler(RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html"));
-        router.route("/www/login").handler(ctx -> { 
-            String rpath = "/";
-            User user = ctx.user();
-            if (user instanceof ExtraUser) {
-                ExtraUser euser = (ExtraUser)user;
-                if (euser.getLocalExtraData() != null) {
-                    rpath = euser.getLocalExtraData().getString("webpath", "/");
-                }
-            }
-            ctx.reroute(rpath); 
-        });
+        router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
                 
         router.route("/logout").handler(context -> {
@@ -264,6 +254,13 @@ public class HttpVerticle extends AbstractVerticle {
             context.response().putHeader("location", "/").setStatusCode(302).end();
         });
         
+        
+        {
+            String servPath = "/www/logingoogle/";
+            router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
+            router.route(servPath+"*").handler(oauth2);
+            router.route(servPath+"*").handler(new WebpathHandler());
+        }
         
         {
             String servPath = "/chat/";
@@ -300,6 +297,10 @@ public class HttpVerticle extends AbstractVerticle {
                                         ctx.response().putHeader("content-type", "text/html").end("Dynamic page for " + webpath);
                                     })
                             );
+                            router.route(wpath+"/logout/*").handler(ctx -> {
+                                ctx.clearUser();
+                                ctx.response().putHeader("location", "/").setStatusCode(302).end();
+                            });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, ctx -> {
                                 HttpServerRequest r = ctx.request();
                                 String zipMode = r.getParam("zip");
@@ -546,6 +547,17 @@ public class HttpVerticle extends AbstractVerticle {
         router.get("/").handler(ctx -> {
             StringBuilder sb = new StringBuilder();
             sb.append("Server is running").append("<br>");
+            String shemaPath = getSchemaUri(ctx.request());
+            {
+                String wp = shemaPath + "/www/logingoogle";
+                String wpStr = "Google";
+                sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
+            }
+            {
+                String wp = shemaPath + "/www/login";
+                String wpStr = "Local";
+                sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
+            }
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx));
         });
         
@@ -663,7 +675,7 @@ public class HttpVerticle extends AbstractVerticle {
 
         String resp = "<pre>"
                 + r.absoluteURI() + "\n"
-                + r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path() + "\n"
+                + getSchemaPath(r) + "\n"
                 + r.uri() + "\n"
                 + r.path() + "\n"
                 + r.query() + "\n"
@@ -672,6 +684,13 @@ public class HttpVerticle extends AbstractVerticle {
                 + "</pre>";
         System.err.println("*********>" + resp);
         return resp;
+    }
+    
+    public static String getSchemaUri(HttpServerRequest r) {
+        return r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length());
+    }
+    public static String getSchemaPath(HttpServerRequest r) {
+        return getSchemaUri(r) + r.path();
     }
     
 }
