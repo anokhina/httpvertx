@@ -308,8 +308,8 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         // search
         // https://docs.oracle.com/javase/tutorial/essential/io/find.html
         // send email
-        if (ctx.user() instanceof HttpVerticle.ExtraUser) {
-            HttpVerticle.ExtraUser user = (HttpVerticle.ExtraUser)ctx.user();
+        if (ctx.user() instanceof ExtraUser) {
+            ExtraUser user = (ExtraUser)ctx.user();
             MultiMap params = ctx.request().params();
             if (params.contains("chatTo")) {
                 if (params.contains("chatMsg")) {

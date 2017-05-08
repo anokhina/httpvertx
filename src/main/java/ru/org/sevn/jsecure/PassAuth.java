@@ -29,6 +29,10 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+/**
+ *
+ * @author avn
+ */
 public class PassAuth {
     //http://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html
     //https://tools.ietf.org/html/rfc2898#page-8
@@ -105,17 +109,16 @@ public class PassAuth {
         if (args.length < 2) {
             System.out.println("Usage: java " + PassAuth.class.getName() + " <salt> <user> 2> out.txt");
             args = new String[] {"salt", "user"};
-            
-            Console console = System.console();
-            if (console == null) {
-                System.out.println("Couldn't get Console instance");
-            } else {
-                System.out.print("Password:");
-                String pss = new String(console.readPassword());
-                PassAuth auth = new PassAuth(args[0]);
-                String hash = auth.getHashString(pss, args[1]);
-                System.err.println(hash);
-            }
+        }            
+        Console console = System.console();
+        if (console == null) {
+            System.out.println("Couldn't get Console instance");
+        } else {
+            System.out.print("Password:");
+            String pss = new String(console.readPassword());
+            PassAuth auth = new PassAuth(args[0]);
+            String hash = auth.getHashString(pss, args[1]);
+            System.err.println(hash);
         }
     }
 }

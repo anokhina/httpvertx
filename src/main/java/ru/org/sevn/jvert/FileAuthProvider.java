@@ -22,7 +22,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.AuthProvider;
 import io.vertx.ext.auth.User;
 import ru.org.sevn.jsecure.PassAuth;
-import ru.org.sevn.jvert.HttpVerticle.UserMatcher;
 
 public class FileAuthProvider implements AuthProvider {
     
@@ -33,6 +32,8 @@ public class FileAuthProvider implements AuthProvider {
         this.userMatcher = um;
         this.auth = auth;
     }
+    
+    public static final String AUTH_SYSTEM = "local";
     
     @Override
     public void authenticate(JsonObject authInfo, Handler<AsyncResult<User>> resultHandler) {
@@ -46,11 +47,14 @@ public class FileAuthProvider implements AuthProvider {
           resultHandler.handle(Future.failedFuture("authInfo must contain password in 'password' field"));
           return;
         }
-        JsonObject jobj = userMatcher.getUserInfo(username);
+        JsonObject jobj = userMatcher.getUserInfo(AUTH_SYSTEM + ":" + username);
         if (jobj != null && auth.authenticate(password, username, jobj.getString("token"))) {
-            HttpVerticle.ExtraUser user = new HttpVerticle.ExtraUser(new PlainUser(username));
-            HttpVerticle.ExtraUser.upgradeUserInfo(userMatcher, user);
-            user.setAuthProvider(this);
+            PlainUser puser = new PlainUser(username);
+            puser.setAuthProvider(this);
+            
+            ExtraUser user = new ExtraUser(AUTH_SYSTEM, puser);
+            ExtraUser.upgradeUserInfo(userMatcher, user);
+            
             resultHandler.handle(Future.succeededFuture(user));
             return;
         }

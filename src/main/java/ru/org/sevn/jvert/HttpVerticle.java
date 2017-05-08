@@ -15,15 +15,8 @@
  */
 package ru.org.sevn.jvert;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.oauth2.Oauth2;
-import com.google.api.services.oauth2.model.Userinfoplus;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
@@ -33,7 +26,6 @@ import io.vertx.core.net.PemKeyCertOptions;
 import io.vertx.ext.auth.AuthProvider;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.oauth2.OAuth2Auth;
-import io.vertx.ext.auth.oauth2.impl.AccessTokenImpl;
 import io.vertx.ext.auth.oauth2.providers.GoogleAuth;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -46,8 +38,6 @@ import io.vertx.ext.web.handler.RedirectAuthHandler;
 import io.vertx.ext.web.handler.SessionHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.handler.UserSessionHandler;
-import io.vertx.ext.web.handler.impl.OAuth2AuthHandlerImpl;
-import io.vertx.ext.web.handler.impl.StaticHandlerImpl;
 import io.vertx.ext.web.sstore.LocalSessionStore;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -57,10 +47,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.Deflater;
@@ -236,56 +222,6 @@ public class HttpVerticle extends AbstractVerticle {
         router.route().handler(sessionHandler);
     }
     
-    static class SimpleUserMatcher implements UserMatcher {
-        private HashMap<String, JsonObject> userGroups = new HashMap<>();
-
-        public SimpleUserMatcher(JsonArray arr) {
-            for (Object o : arr) {
-                if (o instanceof JsonObject) {
-                    JsonObject jobj = (JsonObject) o;
-                    if (jobj.containsKey("id")) {
-                        userGroups.put(jobj.getString("id"), jobj);
-                    }
-                }
-            }
-        }
-        @Override
-        public Collection<String> getGroups(User u) {
-            if (u instanceof ExtraUser) {
-                ExtraUser user = (ExtraUser)u;
-                JsonObject jobj = userGroups.get(user.getId());
-                if (jobj != null) {
-                    HashSet<String> grps = new HashSet();
-                    try {
-                        if (jobj.containsKey("groups")) {
-                            for (Object g : jobj.getJsonArray("groups")) {
-                                grps.add(g.toString());
-                            }
-                        }
-                        return grps;
-                    } catch (Exception ex) {
-                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public JsonObject getUserInfo(User u) {
-            if (u instanceof ExtraUser) {
-                ExtraUser user = (ExtraUser)u;
-                return userGroups.get(user.getId());
-            }
-            return null;
-        }
-
-        @Override
-        public JsonObject getUserInfo(String uid) {
-            return userGroups.get(uid);
-        }
-        
-    }
     
     private void redirect(HttpServerRequest r, String location) {
         r.response().setChunked(false);
@@ -310,7 +246,17 @@ public class HttpVerticle extends AbstractVerticle {
 
         FileAuthProvider fileAuthProvider = new FileAuthProvider(userMatcher, new PassAuth(saltPrefix));
         router.route("/www/login").handler(RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html"));
-        router.route("/www/login").handler(ctx -> { ctx.reroute("/"); });
+        router.route("/www/login").handler(ctx -> { 
+            String rpath = "/";
+            User user = ctx.user();
+            if (user instanceof ExtraUser) {
+                ExtraUser euser = (ExtraUser)user;
+                if (euser.getLocalExtraData() != null) {
+                    rpath = euser.getLocalExtraData().getString("webpath", "/");
+                }
+            }
+            ctx.reroute(rpath); 
+        });
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
                 
         router.route("/logout").handler(context -> {
@@ -599,6 +545,12 @@ public class HttpVerticle extends AbstractVerticle {
         
         router.get("/").handler(ctx -> {
             StringBuilder sb = new StringBuilder();
+            sb.append("Server is running").append("<br>");
+            ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx));
+        });
+        
+        router.get("/admin").handler(ctx -> {
+            StringBuilder sb = new StringBuilder();
             sb.append("Configured paths:").append("<br>");
             for (String wp : websList) {
                 sb.append("<a href=\"/").append(wp).append("/index.html\">").append(wp).append("</a>").append("<br>");
@@ -651,30 +603,6 @@ public class HttpVerticle extends AbstractVerticle {
         return ret;
     }
     
-    public static class NReachableFSStaticHandlerImpl extends StaticHandlerImpl {
-
-        private String webRoot = DEFAULT_WEB_ROOT;
-        @Override
-        public StaticHandler setWebRoot(String webRoot) {
-            super.setWebRoot(webRoot);
-            this.webRoot = webRoot;
-            return this;
-        }
-        
-       @Override
-        public void handle(RoutingContext context) {
-            try {
-                if (new File(webRoot).exists()) {
-                    super.handle(context);
-                } else {
-                    context.fail(HttpResponseStatus.NOT_FOUND.code());
-                }
-            } catch (Exception ex) {
-                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Not found: " + webRoot);
-                context.fail(HttpResponseStatus.NOT_FOUND.code());
-            }
-        }
-    }
             
     protected void startServer(Router router) {
         HttpServerOptions options = new HttpServerOptions();
@@ -708,227 +636,20 @@ public class HttpVerticle extends AbstractVerticle {
                 .putHeader("X-FRAME-OPTIONS", "DENY");
     }
     
-    public static class GroupUserAuthorizer implements UserAuthorizer {
         
-        private final Set<String>groups = new HashSet<>();
-        
-        public GroupUserAuthorizer(JsonArray groups) {
-            for(Object o : groups) {
-                this.groups.add(o.toString());
-            }
+
+//--------------------------
+    private static String loggedUserString(RoutingContext context) {
+        User user = context.user();
+        if (user instanceof ExtraUser) {
+            return ((ExtraUser)user).fullInfo().encodePrettily();
+        } else if (user != null) {
+            return "some authenticated user";
         }
-        
-        @Override
-        public boolean isAllowed(User u, RoutingContext rc) {
-            if (u instanceof ExtraUser) {
-                ExtraUser user = (ExtraUser)u;
-                if (groups.size() > 0) {
-                    for (String grp : this.groups) {
-                        if (user.getGroups().contains(grp)) {
-                            return true;
-                        }
-                    }
-                } else {
-                    return true;
-                }
-            }
-            return false;
-        }
+        return "";
     }
-        
-    public interface UserAuthorizer  {
-        boolean isAllowed(User user, RoutingContext rc);
-    }
-    public static class UserAuthorizedHandler implements io.vertx.core.Handler<RoutingContext> {
-        
-        private final io.vertx.core.Handler<RoutingContext> handler;
-        private final UserAuthorizer authorizer;
-        public UserAuthorizedHandler(UserAuthorizer authorizer, io.vertx.core.Handler<RoutingContext> handler) {
-            this.handler = handler;
-            this.authorizer = authorizer;
-        }
-
-        @Override
-        public void handle(RoutingContext rc) {
-            if (authorizer.isAllowed(rc.user(), rc)) {
-                handler.handle(rc);
-            } else {
-                rc.fail(HttpResponseStatus.FORBIDDEN.code());//403
-            }
-        }
-    }
-    public static class RedirectUnAuthParamPageHandler implements io.vertx.core.Handler<RoutingContext> {
-        private final String wpath;
-        
-        public RedirectUnAuthParamPageHandler (String p) {
-            this.wpath = p;
-        }
-        @Override
-        public void handle(RoutingContext ctx) {
-            if (ctx.user() == null) {
-                if (ctx.request().params().size() > 0) {
-                    ctx.reroute(wpath);
-                    return;
-                }
-            }
-            ctx.next();        
-        }
-    }
-    public static class ExtraUser implements User {
-        private final User user;
-        private JsonObject extraData;
-        private JsonObject localExtraData;
-        private Set<String> groups = new HashSet<>();
-        
-        public static ExtraUser upgradeUserInfo(UserMatcher userMatcher, ExtraUser euser) {
-            Collection<String> groups = userMatcher.getGroups(euser);
-            if (groups != null) {
-                euser.setLocalExtraData(userMatcher.getUserInfo(euser));
-                euser.getGroups().addAll(groups);
-                return euser;
-            }
-            return null;
-        }
-        public static void upgradeUser(UserMatcher userMatcher, ExtraUser euser, RoutingContext context) throws IOException {
-            if (upgradeUserInfo(userMatcher, euser)!= null) {
-                context.setUser(euser);
-                Session session = context.session();
-                if (session != null) {
-                    // the user has upgraded from unauthenticated to authenticated
-                    // session should be upgraded as recommended by owasp
-                    session.regenerateId();
-                }
-            }
-        }
-        
-        public ExtraUser(User u) {
-            user = u;
-        }
-
-        @Override
-        public User isAuthorised(String string, Handler<AsyncResult<Boolean>> hndlr) {
-            user.isAuthorised(string, hndlr);
-            return this;
-        }
-
-        @Override
-        public User clearCache() {
-            user.clearCache();
-            return this;
-        }
-
-        @Override
-        public JsonObject principal() {
-            return user.principal();
-        }
-
-        @Override
-        public void setAuthProvider(AuthProvider ap) {
-            user.setAuthProvider(ap);
-        }
-        
-        public String getId() {
-            String ret = null;
-            if (extraData != null) {
-                ret = extraData.getString("id", null);
-            }
-            if (ret == null) {
-                if (localExtraData != null) {
-                    ret = localExtraData.getString("id", null);
-                }
-            }
-            if (ret == null) {
-                if (user.principal() != null) {
-                    ret = user.principal().getString("id", null);
-                }
-            }
-            return ret;
-        }
-
-        public JsonObject getExtraData() {
-            return extraData;
-        }
-
-        public void setExtraData(JsonObject extraData) {
-            this.extraData = extraData;
-        }
-
-        public Set<String> getGroups() {
-            return groups;
-        }
-
-        public void setGroups(Set<String> groups) {
-            this.groups = groups;
-        }
-
-        public JsonObject getLocalExtraData() {
-            return localExtraData;
-        }
-
-        public void setLocalExtraData(JsonObject localExtraData) {
-            this.localExtraData = localExtraData;
-        }
-        
-    }    
-    public static interface UserMatcher {
-        Collection<String> getGroups(User u);
-        JsonObject getUserInfo(User u);
-        JsonObject getUserInfo(String uid);
-    }
-    static class GoogleUserOAuth2AuthHandlerImpl extends OAuth2AuthHandlerImpl {
-
-        private final String appName;
-        private UserMatcher userMatcher;
-        
-        public GoogleUserOAuth2AuthHandlerImpl(OAuth2Auth authProvider, String callbackURL, String appName, UserMatcher um) {
-            super(authProvider, callbackURL);
-            this.appName = appName;
-            this.userMatcher = um;
-        }
-
-        @Override
-        public void handle(RoutingContext ctx) {
-            User user = ctx.user();
-            if (user != null) {
-                if (user instanceof AccessTokenImpl) {
-                    try {
-                        upgradeGoogleUser((AccessTokenImpl)user, ctx);
-                        user = ctx.user();
-                    } catch (IOException ex) {
-                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-                if (user instanceof ExtraUser) {
-                    authoriseMe((ExtraUser)user, ctx);
-                } else {
-                    ctx.fail(HttpResponseStatus.FORBIDDEN.code());//403
-                }
-            } else {
-                super.handle(ctx);
-            }
-        }
-        
-        private void upgradeGoogleUser(AccessTokenImpl user, RoutingContext context) throws IOException {
-            GoogleCredential credential = new GoogleCredential().setAccessToken(user.principal().getString("access_token"));
-            Oauth2 oauth2 = new Oauth2.Builder(new NetHttpTransport(), new JacksonFactory(), credential).setApplicationName(appName).build();       
-            Userinfoplus userinfo = oauth2.userinfo().get().execute();
-            
-            ExtraUser euser = new ExtraUser(user);
-            euser.setExtraData(new JsonObject(userinfo.toPrettyString()));
-         
-            ExtraUser.upgradeUser(userMatcher, euser, context);
-        }
-        
-        protected void authoriseMe(ExtraUser user, RoutingContext context) {
-            //super.authorise(user, context);
-            context.next();
-        }
-
-    }
-    //--------------------------
 
     private static String simpleAnswerString(RoutingContext context) {
-        User user = context.user();
         HttpServerRequest r = context.request();
 
         secureSet(context.response());
@@ -946,7 +667,7 @@ public class HttpVerticle extends AbstractVerticle {
                 + r.uri() + "\n"
                 + r.path() + "\n"
                 + r.query() + "\n"
-                + user + "\n"
+                + loggedUserString(context) + "\n"
                 + cnt + "\n"
                 + "</pre>";
         System.err.println("*********>" + resp);
