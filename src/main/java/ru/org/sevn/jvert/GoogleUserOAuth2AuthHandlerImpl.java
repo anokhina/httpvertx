@@ -22,11 +22,17 @@ public class GoogleUserOAuth2AuthHandlerImpl extends OAuth2AuthHandlerImpl {
 
     private final String appName;
     private UserMatcher userMatcher;
+    private boolean onlyUpgraded = true;
 
     public GoogleUserOAuth2AuthHandlerImpl(OAuth2Auth authProvider, String callbackURL, String appName, UserMatcher um) {
         super(authProvider, callbackURL);
         this.appName = appName;
         this.userMatcher = um;
+    }
+
+    public GoogleUserOAuth2AuthHandlerImpl setOnlyUpgraded(boolean onlyUpgraded) {
+        this.onlyUpgraded = onlyUpgraded;
+        return this;
     }
 
     @Override
@@ -44,22 +50,30 @@ public class GoogleUserOAuth2AuthHandlerImpl extends OAuth2AuthHandlerImpl {
             if (user instanceof ExtraUser) {
                 authoriseMe((ExtraUser) user, ctx);
             } else {
-                ctx.fail(HttpResponseStatus.FORBIDDEN.code());//403
+                if (onlyUpgraded) {
+                    ctx.fail(HttpResponseStatus.FORBIDDEN.code());//403
+                } else {
+                    ctx.next();
+                }
             }
         } else {
             super.handle(ctx);
         }
     }
-
-    private void upgradeGoogleUser(AccessTokenImpl user, RoutingContext context) throws IOException {
+    
+    public static ExtraUser makeGoogleUser(String appName, AccessTokenImpl user, RoutingContext context) throws IOException {
         GoogleCredential credential = new GoogleCredential().setAccessToken(user.principal().getString("access_token"));
         Oauth2 oauth2 = new Oauth2.Builder(new NetHttpTransport(), new JacksonFactory(), credential).setApplicationName(appName).build();
         Userinfoplus userinfo = oauth2.userinfo().get().execute();
 
         ExtraUser euser = new ExtraUser("google", user);
         euser.setExtraData(new JsonObject(userinfo.toPrettyString()));
+        return euser;
+    }
 
-        upgradeUser(userMatcher, euser, context);
+    private void upgradeGoogleUser(AccessTokenImpl user, RoutingContext context) throws IOException {
+
+        upgradeUser(userMatcher, makeGoogleUser(appName, user, context), context);
     }
 
     public static void upgradeUser(UserMatcher userMatcher, ExtraUser euser, RoutingContext context) throws IOException {

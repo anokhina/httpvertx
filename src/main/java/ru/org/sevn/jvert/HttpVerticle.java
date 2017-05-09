@@ -109,6 +109,8 @@ public class HttpVerticle extends AbstractVerticle {
                     JsonObject auth = config.getJsonObject("auth", null);
                     if (auth != null) {
                         saltPrefix = auth.getString("salt", "salt");
+                        String invitePath = auth.getString("invitePath", null);
+                        userMatcher = new SimpleUserMatcher(invitePath);
                     }
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
@@ -117,13 +119,6 @@ public class HttpVerticle extends AbstractVerticle {
             if (config.containsKey("webs")) {
                 try {
                     webs = config.getJsonArray("webs", null);
-                } catch (Exception e) {
-                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
-                }
-            }
-            if (config.containsKey("users")) {
-                try {
-                    userMatcher = new SimpleUserMatcher(config.getJsonArray("users", null));
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
                 }
@@ -248,7 +243,12 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/www/login").handler(RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html"));
         router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
-                
+
+        InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(userMatcher, new PassAuth(saltPrefix));
+        router.route("/www/invite").handler(RedirectAuthHandler.create(inviteAuthProvider,"/www/invitepage.html"));
+        router.route("/www/invite").handler(new WebpathHandler());
+        router.route("/www/inviteauth").handler(MultiFormLoginHandlerImpl.create(inviteAuthProvider));
+        
         router.route("/logout").handler(context -> {
             context.clearUser();
             context.response().putHeader("location", "/").setStatusCode(302).end();
@@ -256,9 +256,14 @@ public class HttpVerticle extends AbstractVerticle {
         
         
         {
+            OAuth2AuthHandler oauth2all = new GoogleUserOAuth2AuthHandlerImpl(authProvider, getAuthUrl(), getAppName(), userMatcher).setOnlyUpgraded(false);
+            oauth2all.addAuthority("profile");
+            oauth2all.setupCallback(router.get("/auth"));
+        
             String servPath = "/www/logingoogle/";
             router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
-            router.route(servPath+"*").handler(oauth2);
+            router.route(servPath+"*").handler(oauth2all);
+            router.route(servPath+"invite/*").handler(new GoogleInviteHandler(servPath, appName, userMatcher));
             router.route(servPath+"*").handler(new WebpathHandler());
         }
         
@@ -556,6 +561,11 @@ public class HttpVerticle extends AbstractVerticle {
             {
                 String wp = shemaPath + "/www/login";
                 String wpStr = "Local";
+                sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
+            }
+            {
+                String wp = shemaPath + "/logout";
+                String wpStr = "Logout";
                 sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
             }
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx));

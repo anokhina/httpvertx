@@ -32,16 +32,23 @@ public class ExtraUser implements User {
     private Set<String> groups = new HashSet<>();
     private String authSystem;
 
+    public static void fillFrom(ExtraUser to, ExtraUser from) {
+        if (from.extraData != null) { to.extraData = from.extraData.copy(); }
+        if (from.localExtraData != null) { to.localExtraData = from.localExtraData.copy(); }
+        if (from.groups != null) { to.groups.addAll(from.groups); }
+    }
+    public static void updateUserInfo(JsonObject jobj, ExtraUser euser) {
+        if (jobj != null) {
+            jobj = jobj.copy();
+            jobj.remove("token");
+            jobj.remove("pcomment");
+        }
+        euser.setLocalExtraData(jobj);
+    }
     public static ExtraUser upgradeUserInfo(UserMatcher userMatcher, ExtraUser euser) {
         Collection<String> groups = userMatcher.getGroups(euser);
         if (groups != null) {
-            JsonObject jobj = userMatcher.getUserInfo(euser);
-            if (jobj != null) {
-                jobj = jobj.copy();
-                jobj.remove("token");
-                jobj.remove("pcomment");
-            }
-            euser.setLocalExtraData(jobj);
+            updateUserInfo(userMatcher.getUserInfo(euser), euser);
             euser.getGroups().addAll(groups);
             return euser;
         }
@@ -133,4 +140,7 @@ public class ExtraUser implements User {
         this.localExtraData = localExtraData;
     }
 
+    protected void setAuthSystem(String name) {
+        this.authSystem = name;
+    }
 }

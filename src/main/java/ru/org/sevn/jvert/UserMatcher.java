@@ -27,4 +27,5 @@ public interface UserMatcher {
 
     JsonObject getUserInfo(String uid);
     
+    boolean updateUser(User u, String id, String token);
 }
