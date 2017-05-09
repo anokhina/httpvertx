@@ -82,12 +82,15 @@ public class ExtraUser implements User {
         user.setAuthProvider(ap);
     }
     
-    public JsonObject fullInfo() {
+    public JsonObject fullInfo(boolean full) {
         JsonObject ret = new JsonObject();
         putNotNul(ret, "id", getId());
         putNotNul(ret, "authSystem", authSystem);
         putNotNul(ret, "extraData", extraData);
         putNotNul(ret, "localExtraData", localExtraData);
+        if (full) {
+            putNotNul(ret, "principal", user.principal());
+        }
         // user.principal() returns not public info
         return ret;
     }

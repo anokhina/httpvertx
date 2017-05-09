@@ -15,6 +15,7 @@
  */
 package ru.org.sevn.jvert;
 
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.oauth2.impl.AccessTokenImpl;
 import io.vertx.ext.web.RoutingContext;
@@ -52,7 +53,12 @@ public class GoogleInviteHandler implements io.vertx.core.Handler<RoutingContext
             ExtraUser guser;
             try {
                 guser = GoogleUserOAuth2AuthHandlerImpl.makeGoogleUser(appName, atoken, ctx);
-                if (userMatcher.updateUser(euser, guser.getId(), null)) {
+                String name = "";
+                try {
+                    name = guser.getExtraData().getString("name");
+                } catch (Exception e) {}
+                JsonObject jobj = new JsonObject().put("id", guser.getId()).put("name", name);
+                if (userMatcher.updateUser(euser, jobj)) {
                     GoogleUserOAuth2AuthHandlerImpl.upgradeUser(userMatcher, guser, ctx);
                 }
             } catch (IOException ex) {

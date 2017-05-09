@@ -568,7 +568,7 @@ public class HttpVerticle extends AbstractVerticle {
                 String wpStr = "Logout";
                 sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
             }
-            ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx));
+            ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx, false));
         });
         
         router.get("/admin").handler(ctx -> {
@@ -661,10 +661,10 @@ public class HttpVerticle extends AbstractVerticle {
         
 
 //--------------------------
-    private static String loggedUserString(RoutingContext context) {
+    private static String loggedUserString(RoutingContext context, boolean full) {
         User user = context.user();
         if (user instanceof ExtraUser) {
-            return ((ExtraUser)user).fullInfo().encodePrettily();
+            return ((ExtraUser)user).fullInfo(full).encodePrettily();
         } else if (user != null) {
             return "some authenticated user";
         }
@@ -689,7 +689,7 @@ public class HttpVerticle extends AbstractVerticle {
                 + r.uri() + "\n"
                 + r.path() + "\n"
                 + r.query() + "\n"
-                + loggedUserString(context) + "\n"
+                + loggedUserString(context, !true) + "\n"
                 + cnt + "\n"
                 + "</pre>";
         System.err.println("*********>" + resp);

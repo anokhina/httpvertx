@@ -94,7 +94,8 @@ public class SimpleUserMatcher implements UserMatcher {
     }
 
     @Override
-    public synchronized boolean updateUser(User u, String id, String token) {
+    public synchronized boolean updateUser(User u, JsonObject jobj2set) {
+        String id = jobj2set.getString("id");
         JsonObject jobjEx = getUserInfo(id);
         if (jobjEx == null) {
             String uid = getId(u);
@@ -106,10 +107,12 @@ public class SimpleUserMatcher implements UserMatcher {
                     } else {
                         jobj = jobj.copy();
                     }
-                    if (token != null) {
-                        jobj.put("token", token);
+                    {
+                        final JsonObject ljobj = jobj;
+                        jobj2set.forEach(el -> {
+                            ljobj.put(el.getKey(), el.getValue());
+                        });
                     }
-                    jobj.put("id", id);
                     userGroups.put(id, jobj);
                     
                     JsonArray jarr = new JsonArray(new ArrayList(userGroups.values()));

@@ -27,5 +27,16 @@ public interface UserMatcher {
 
     JsonObject getUserInfo(String uid);
     
-    boolean updateUser(User u, String id, String token);
+    default boolean updateUser(User u, String id, String token) {
+        JsonObject jobj = new JsonObject();
+        if (id != null) {
+            jobj.put("id", id);
+        }
+        if (token != null) {
+            jobj.put("token", token);
+        }
+        return updateUser(u, jobj);
+    }
+    
+    boolean updateUser(User u, JsonObject jobj);
 }
