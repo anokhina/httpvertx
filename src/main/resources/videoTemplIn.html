@@ -1,0 +1,24 @@
+<!--${__htmlCmtE__}
+<table class="photo">
+<tr><td>
+<a href="$!{href}" class="jpgimg"><img onclick="imgView($!{hrefidx})" src="$!{href}?imgThmb=sm" height="160"/></a>
+</td></tr>
+<tr><td style="text-align: center">$!{imgComment}</td></tr>
+</table>
+${__htmlCmtB__}-->
+<table class="video">
+<tr><td>
+<video class="vid" controls>
+  <source src="$href" type="video/mp4">
+  Браузер не поддерживает встроенное видео.
+  Your browser does not support the video tag.
+</video>
+</td></tr>
+<tr><td style="text-align: center">
+<div class="previewIcon" onclick="imgView($!{hrefidx})">&#8691;</div>
+<a href="$!{href}">&dArr;Скачать</a>
+</td></tr>
+</table>
+<!--${__htmlCmtE__}
+-->
+

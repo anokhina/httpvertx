@@ -70,12 +70,27 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	static class HtmlContent {
 		private StringBuilder content = new StringBuilder();
 		private File file;
-		private final Menu root;
+		private final Menu menu;
 		public HtmlContent(Menu f) {
-			root = f;
+			menu = f;
 		}
 	}
-    
+
+    public WWWGenHandler(JsonObject htmlgen, File dirr, String webpath) {
+        this(htmlgen.getString("dirtemplates", null), dirr, webpath);
+        if (htmlgen.containsKey("logo")) {
+            setLogoFile(htmlgen.getString("logo"));
+        }
+        if (htmlgen.containsKey("css")) {
+            setCssFile(htmlgen.getString("css"));
+        }
+        if (htmlgen.containsKey("favico")) {
+            setFaviconFile(htmlgen.getString("favico"));
+        }
+        if (htmlgen.containsKey("force")) {
+            setForce(htmlgen.getBoolean("force"));
+        }
+    }
     public WWWGenHandler(String resdir, File dirr, String webpath) {
         VelocityEngine ve = new VelocityEngine();
         if (resdir == null || !new File(resdir).exists()) {
@@ -244,7 +259,6 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		} else {
 			m.getDirProperties().setModify(true);
 		}
-		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + file);
 		
 		m.setIconPath(getExists(file, ".icon", ICONS_EXT));
 		m.setTitle(getText(FileUtil.getExistsFile(file, ".title", TXT_EXT)));
@@ -254,6 +268,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		m.getDirProperties().setOrder(getText(
 				FileUtil.getExistsFile(file, ".order", TXT_EXT),
 				m.getDirProperties().getOrder()));
+		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + file+":"+m.getDirProperties().getOrder());
 		
 		m.getDirProperties().setContentCntMax(
 				getTextInt(
@@ -410,7 +425,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	}
     
 	private HtmlContent appendMenus(HtmlContent content, VelocityContext context) {
-		Menu mainMenu = Menu.getRoot(content.root);
+		Menu mainMenu = Menu.getRoot(content.menu);
 		{
 			Template nav = ve.getTemplate("navcolumnTempl.html");
 			StringBuilder str = new StringBuilder();
@@ -421,8 +436,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 			context.put("navcolumns", str.toString());
 		}
 		Menu parent = null;
-		if (content.root != null) {
-			parent = content.root.getParent();
+		if (content.menu != null) {
+			parent = content.menu.getParent();
 		}
 		if (parent != null && mainMenu != parent) {
 			Template subnav = ve.getTemplate("subnavcolumnTempl.html");
@@ -431,7 +446,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 				str.append(applyTemplateDir(subnav, content, parent)).append("\n");
 			}
 			for(Menu m : parent.getMenus()) {
-				//System.out.println("----------"+m.getId()+/*":"+m.getContentFile()+*/":"+getHref(content.root.getFile(), m.getContentFile()));
+				//System.out.println("----------"+m.getId()+/*":"+m.getContentFile()+*/":"+getHref(content.menu.getFile(), m.getContentFile(), m.getAnyTitle()));
 				str.append(applyTemplate(subnav, content, m)).append("\n");
 			}			
 			context.put("subnavcolumns", str.toString());
@@ -457,12 +472,12 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		context.put("fakeimg", FileUtil.getRelativePath(content.file, getLogoFile())); 
 		
 		context.put("pageContent", content.content.toString());
-		context.put("breadcrumbs", makeBreadcrumbs(content.root, null));
-		context.put("title", content.root.getFullTitle());
+		context.put("breadcrumbs", makeBreadcrumbs(content.menu, null));
+		context.put("title", content.menu.getFullTitle());
 		
 		context.put("cssName", FileUtil.getRelativePath(content.file, getCssFile()));
 		
-		Menu mainMenu = Menu.getRoot(content.root);
+		Menu mainMenu = Menu.getRoot(content.menu);
 		if (mainMenu.getContentFile() != null) {
 			context.put("navLogoHref", FileUtil.getRelativePath(content.file, mainMenu.getContentFile() ));
 		} else
@@ -615,8 +630,6 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             if (rootDir.equals(file)) {
                 applyContent(root, getContent(root, true, true));
             } else {
-                Comparator<File> comparator = getFileComparator(root.getDirProperties().getOrder());
-
                 ArrayList<File> parents = new ArrayList<>();
                 if (file.isDirectory()) {
                     parents.add(file);
@@ -630,7 +643,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                     File fromPath = parents.get(i);
                     
                     Menu pn = null;
-                    
+
+                    Comparator<File> comparator = getFileComparator(p.getDirProperties().getOrder());
                     for(File f : sort(p.getFile().listFiles(dirFileFilter), comparator)) { 
                         if (f.isDirectory()) {
                             Menu m = makeMenu(null, f, p.getDirProperties());
@@ -687,6 +701,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                 if (subContent == null) {
                     subContent = cnt;
                 }
+                if (!addSubMenu && subContent != null) {
+                    break;
+                }
             }
         }
         
@@ -714,13 +731,13 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         }
         
         if (content == null) {
-            if (!writeIt) {
-                content = subContent;
-            }
-        }
-        if (content == null) {
             HtmlContent emptyContent = new HtmlContent(root);
             emptyContent.file = new File(root.getFile(), "index.html");
+            if (subContent == null) {
+                content = emptyContent;
+            } else {
+                content = subContent;
+            }
             if(writeIt && (root.getDirProperties().isModify() || force)) {
                 for (Menu m : root.getMenus()) {
                     File f = m.getContentFile();
@@ -729,9 +746,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                     }
                     appendContent(emptyContent, getHref(root.getFile(), f, m.getAnyTitle()), "text", "text");
                 }
+                applyContent(emptyContent.menu, content);
                 write(emptyContent);
             }
-            content = emptyContent;
         }
         
         return content;

@@ -280,7 +280,7 @@ public class HttpVerticle extends AbstractVerticle {
         if (webs != null) {
             for (Object o : webs) {
                 if (o instanceof JsonObject) {
-                    JsonObject jobj = (JsonObject)o;
+                    final JsonObject jobj = (JsonObject)o;
                     if (jobj.containsKey("webpath") && jobj.containsKey("dirpath") && jobj.containsKey("groups")) {
                         try {
                             String webpath = jobj.getString("webpath");
@@ -535,11 +535,13 @@ public class HttpVerticle extends AbstractVerticle {
                                 );
                             }
                             
-                            router.route(wpath+"/*").handler(
-                                    new UserAuthorizedHandler(authorizer, 
-                                        new ru.org.sevn.jvert.wwwgen.WWWGenHandler(null, new File(dirpath), webpath)
-                                    )
-                            );
+                            if (jobj.containsKey("htmlgen")) {
+                                router.route(wpath+"/*").handler(
+                                        new UserAuthorizedHandler(authorizer, 
+                                            new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath)
+                                        )
+                                );
+                            }
                             router.route(wpath+"/*").handler(
                                     new UserAuthorizedHandler(authorizer, 
                                         new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpath).getAbsolutePath())

@@ -1,0 +1,12 @@
+<table class="photo">
+<tr><td>
+#if($useThumb)
+<a href="$!{href}" class="jpgimg"><img onclick="imgView($!{hrefidx})" src="$!{hrefthumb}"/></a>
+#else
+<a href="$!{href}" class="jpgimg"><img onclick="imgView($!{hrefidx})" src="$!{hrefthumb}?imgThmb=sm" height="160"/></a>
+#end
+</td></tr>
+<tr><td style="text-align: center">
+$!{imgComment}
+</td></tr>
+</table>
