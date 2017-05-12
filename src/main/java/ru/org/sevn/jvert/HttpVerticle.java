@@ -15,6 +15,7 @@
  */
 package ru.org.sevn.jvert;
 
+import ru.org.sevn.utilwt.ImageIconSupplier;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServerOptions;
@@ -362,8 +363,7 @@ public class HttpVerticle extends AbstractVerticle {
                                     ctx.next();
                                 }
                             }));
-                            router.route(wpath+"/*").handler(
-                                    new UserAuthorizedHandler(authorizer, ctx -> {
+                            router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, ctx -> {
                                         HttpServerRequest r = ctx.request();
                                         String imgThmb = r.params().get("imgThmb");
                                         if (imgThmb != null) {
@@ -395,7 +395,7 @@ public class HttpVerticle extends AbstractVerticle {
                                                         String contentType = Files.probeContentType(img.toPath());
                                                         if (contentType != null && contentType.startsWith("image")) {
                                                             File thumbFile = new File(dirpathTh, thumbName);
-                                                            if (makeThumbs( new ImageIconSupplier() {
+                                                            if (ImageUtil.makeThumbs( new ImageIconSupplier() {
 
                                                                 @Override
                                                                 public ImageIcon getImageIcon() {
@@ -409,7 +409,7 @@ public class HttpVerticle extends AbstractVerticle {
                                                             thumbName += ".png";
                                                             newRoute += ".png";
                                                             File thumbFile = new File(dirpathTh, thumbName);
-                                                            if (makeThumbs( new ImageIconSupplier() {
+                                                            if (ImageUtil.makeThumbs( new ImageIconSupplier() {
 
                                                                 @Override
                                                                 public ImageIcon getImageIcon() {
@@ -534,6 +534,12 @@ public class HttpVerticle extends AbstractVerticle {
                                         })
                                 );
                             }
+                            
+                            router.route(wpath+"/*").handler(
+                                    new UserAuthorizedHandler(authorizer, 
+                                        new ru.org.sevn.jvert.wwwgen.WWWGenHandler(null, new File(dirpath), webpath)
+                                    )
+                            );
                             router.route(wpath+"/*").handler(
                                     new UserAuthorizedHandler(authorizer, 
                                         new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpath).getAbsolutePath())
@@ -595,37 +601,7 @@ public class HttpVerticle extends AbstractVerticle {
         
         startServer(router);
     }
-
-    public static interface ImageIconSupplier {
-        ImageIcon getImageIcon();
-    }
-    private static File makeThumbs(ImageIconSupplier imgSupplier, File thumbimg, int height) {
-        //BufferedImage frame = FrameGrab.getFrame(new File("/Users/jovi/Movies/test.mp4"), i);
-        File ret = null;
-        // TODO Exception
-        if (!thumbimg.exists()) {
-            File thumbdir = thumbimg.getParentFile();
-            // TODO Exception
-            if (!thumbdir.exists()) {
-                thumbdir.mkdirs();
-            }
-            
-            System.err.println("generate thumb>>>" + thumbimg);
-            try {
-                ImageIcon ii = ImageUtil.getScaledImageIconHeight(imgSupplier.getImageIcon(), height, false);
-                ImageIO.write(ImageUtil.getBufferedImage(ii), "png", thumbimg);
-                ret = thumbimg;
-            } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        } else {
-            ret = thumbimg;
-        }
-        return ret;
-    }
     
-            
     protected void startServer(Router router) {
         HttpServerOptions options = new HttpServerOptions();
         if (isUseSsl()) {

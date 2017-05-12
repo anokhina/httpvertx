@@ -161,4 +161,29 @@ public class ImageUtil {
         return null;
 	}
 
+    public static File makeThumbs(ImageIconSupplier imgSupplier, File thumbimg, int height) {
+        //BufferedImage frame = FrameGrab.getFrame(new File("/Users/jovi/Movies/test.mp4"), i);
+        File ret = null;
+        // TODO Exception
+        if (!thumbimg.exists()) {
+            File thumbdir = thumbimg.getParentFile();
+            // TODO Exception
+            if (!thumbdir.exists()) {
+                thumbdir.mkdirs();
+            }
+            
+            System.err.println("generate thumb>>>" + thumbimg);
+            try {
+                ImageIcon ii = ImageUtil.getScaledImageIconHeight(imgSupplier.getImageIcon(), height, false);
+                ImageIO.write(ImageUtil.getBufferedImage(ii), "png", thumbimg);
+                ret = thumbimg;
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        } else {
+            ret = thumbimg;
+        }
+        return ret;
+    }
 }
