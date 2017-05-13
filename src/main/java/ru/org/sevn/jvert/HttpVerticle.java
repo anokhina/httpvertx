@@ -60,6 +60,7 @@ import org.jcodec.common.FileChannelWrapper;
 import org.jcodec.common.NIOUtils;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.utilwt.ImageUtil;
+import ru.org.sevn.jvert.auth.InviteHandler;
 
 public class HttpVerticle extends AbstractVerticle {
     private static final int KB = 1024;
@@ -245,10 +246,12 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
 
-        InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(userMatcher, new PassAuth(saltPrefix));
-        router.route("/www/invite").handler(RedirectAuthHandler.create(inviteAuthProvider,"/www/invitepage.html"));
-        router.route("/www/invite").handler(new WebpathHandler());
-        router.route("/www/inviteauth").handler(MultiFormLoginHandlerImpl.create(inviteAuthProvider));
+        {
+            InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(userMatcher, new PassAuth(saltPrefix));
+            router.route("/www/invite/*").handler(new InviteHandler("/www/invite/"));
+            router.route("/www/invite/*").handler(new WebpathHandler());
+            router.route("/www/inviteauth").handler(MultiFormLoginHandlerImpl.create(inviteAuthProvider));
+        }
         
         router.route("/logout").handler(context -> {
             context.clearUser();
@@ -590,7 +593,7 @@ public class HttpVerticle extends AbstractVerticle {
         });
         
         //webroot
-        router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false));
+        router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false).setDefaultContentEncoding("UTF-8"));
         
         router.get("/*").failureHandler(ctx -> {
             //TODO error template
