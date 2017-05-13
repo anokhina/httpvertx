@@ -9,13 +9,16 @@
     <meta http-equiv="Pragma" content="no-cache"/>
     <meta http-equiv="Expires" content="0"/>
 
-    <link rel="stylesheet" href="login.css">
+    <link rel="stylesheet" href="../login.css">
 </head>
 <body>
 
-<img src="img/logo_txt.png" class="logoimg"/>
-<form action="/www/loginauth" method="post" class="form-signin">
-    <h2 class="form-signin-heading">Авторизация / Login</h2>
+<img src="../img/logo_txt.png" class="logoimg"/>
+<form action="/www/inviteauth" method="post" class="form-signin">
+    <h2 class="form-signin-heading">Регистрация / Registration</h2>
+    <div>
+        <input type="text" name="username0" class="input-block-level" placeholder="Приглашение / Invite" value="inv:invitation">
+    </div>
     <div>
         <input type="name" name="username" class="input-block-level" placeholder="Имя пользователя / User name"/>
     </div>
@@ -23,8 +26,12 @@
         <input type="password" name="password" class="input-block-level" placeholder="Пароль / password"/>
     </div>
     <div>
-        <input type="submit" value="Войти / Submit" class="btn btn-large btn-primary"/>
+        <input type="password" name="password2" class="input-block-level" placeholder="Пароль(повтор) / Repeat password"/>
+    </div>
+    <div>
+        <input type="submit" value="Отправить / Submit" class="btn btn-large btn-primary"/>
     </div>
 </form>
+
 </body>
 </html>
