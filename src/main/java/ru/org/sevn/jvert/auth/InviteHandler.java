@@ -19,7 +19,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.Session;
-import io.vertx.ext.web.handler.impl.RedirectAuthHandlerImpl;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -28,10 +27,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import ru.org.sevn.jvert.HttpVerticle;
 import ru.org.sevn.jvert.VertxOutputStream;
-/**
- *
- * @author avn
- */
+
 public class InviteHandler implements io.vertx.core.Handler<RoutingContext> {
     
     static String DEFAULT_RETURN_URL_PARAM = "return_url";

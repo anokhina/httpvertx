@@ -15,8 +15,6 @@
  */
 package ru.org.sevn.jvert;
 
-import ru.org.sevn.utilwt.ImageIconSupplier;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerRequest;
@@ -40,27 +38,18 @@ import io.vertx.ext.web.handler.SessionHandler;
 import io.vertx.ext.web.handler.StaticHandler;
 import io.vertx.ext.web.handler.UserSessionHandler;
 import io.vertx.ext.web.sstore.LocalSessionStore;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.zip.Deflater;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-import javax.imageio.ImageIO;
-import javax.swing.ImageIcon;
-import org.jcodec.api.awt.FrameGrab;
-import org.jcodec.common.FileChannelWrapper;
-import org.jcodec.common.NIOUtils;
 import ru.org.sevn.jsecure.PassAuth;
-import ru.org.sevn.utilwt.ImageUtil;
 import ru.org.sevn.jvert.auth.InviteHandler;
+import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
+import ru.org.sevn.jvert.wwwgen.ThumbHandler;
+import ru.org.sevn.jvert.wwwgen.ZipHandler;
 
 public class HttpVerticle extends AbstractVerticle {
     private static final int KB = 1024;
@@ -310,150 +299,9 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.clearUser();
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
                             });
-                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, ctx -> {
-                                HttpServerRequest r = ctx.request();
-                                String zipMode = r.getParam("zip");
-                                if (zipMode != null) {
-                                    String path = r.path();
-                                    path = path.substring(wpathDelim.length());
-                                    try {
-                                        path = java.net.URLDecoder.decode(path, "UTF-8");
-                                    } catch (UnsupportedEncodingException ex) {
-                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                    }
-                                    File dir = new File(dirpath, path);
-                                    if (dir.exists()) {
-                                        if (!dir.isDirectory()) {
-                                            dir = dir.getParentFile();
-                                        }
-                                        if (dir != null) {
-                                            try {
-                                                if ("1".equals(zipMode)) {
-                                                    ctx.fail(HttpResponseStatus.FORBIDDEN.code());
-                                                } else {
-                                                    HttpServerResponse response = ctx.response();
-                                                    String name = dir.getName();
-                                                    String fileName = name + ".zip";
-                                                    String encodeFileName = new String(fileName.getBytes("UTF-8"), "ISO-8859-1");                                                
-                                                    response.setChunked(true)
-                                                        .putHeader("content-type", "application/zip")
-                                                        .putHeader("Content-Disposition", "filename=\"" + encodeFileName + "\"");
-    //                                                    .putHeader("Content-Disposition", "form-data; name=\"" + name + "\"; filename=\"" + fileName + "\"");
-
-                                                    ZipOutputStream zos = new ZipOutputStream(new VertxOutputStream(response));
-                                                    zos.setLevel(Deflater.DEFLATED);
-                                                    for(File fl : dir.listFiles()) {
-                                                        String nm = fl.getName(); 
-                                                        if (fl.isDirectory()) {}
-                                                        else if (nm.startsWith("_") || nm.startsWith(".")) {}
-                                                        else {
-                                                            ZipEntry ze = new ZipEntry(nm);
-                                                            zos.putNextEntry(ze);
-                                                            zos.write(Files.readAllBytes(fl.toPath()));
-                                                            zos.closeEntry();
-                                                        }
-                                                    }
-                                                    zos.close();
-                                                }
-                                            } catch (IOException ex) {
-                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                            }
-                                        }
-                                    } else {
-                                        ctx.fail(HttpResponseStatus.NOT_FOUND.code());
-                                    }
-                                } else {
-                                    ctx.next();
-                                }
-                            }));
-                            router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, ctx -> {
-                                        HttpServerRequest r = ctx.request();
-                                        String imgThmb = r.params().get("imgThmb");
-                                        if (imgThmb != null) {
-                                            
-                                            String path = r.path();
-                                            try {
-                                                path = java.net.URLDecoder.decode(r.path(), "UTF-8");
-                                            } catch (UnsupportedEncodingException ex) {
-                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                            }
-                                            
-                                            int height = 0;
-                                            String dirpathTh = "";
-                                            String newRoute = "";
-                                            String thumbName = path.substring(wpathDelim.length());
-                                            if ("sm".equals(imgThmb)) {
-                                                height = 160;
-                                                dirpathTh = dirpathThumb;
-                                                newRoute = wpath + "/thumb/" + thumbName;
-                                            } else if ("bg".equals(imgThmb)) {
-                                                height = 736;
-                                                dirpathTh = dirpathThumbBig;
-                                                newRoute = wpath + "/thumbg/" + thumbName;
-                                            }
-                                            if (height > 0) {
-                                                final File img = new File(dirpath, thumbName);
-                                                if (img.exists()) {
-                                                    try {
-                                                        String contentType = Files.probeContentType(img.toPath());
-                                                        if (contentType != null && contentType.startsWith("image")) {
-                                                            File thumbFile = new File(dirpathTh, thumbName);
-                                                            if (ImageUtil.makeThumbs( new ImageIconSupplier() {
-
-                                                                @Override
-                                                                public ImageIcon getImageIcon() {
-                                                                    return new ImageIcon(img.getPath());
-                                                                }
-                                                            }, thumbFile, height) != null) {
-                                                                ctx.reroute(newRoute);
-                                                                return;
-                                                            }
-                                                        } else if (contentType != null && contentType.startsWith("video")) {
-                                                            thumbName += ".png";
-                                                            newRoute += ".png";
-                                                            File thumbFile = new File(dirpathTh, thumbName);
-                                                            if (ImageUtil.makeThumbs( new ImageIconSupplier() {
-
-                                                                @Override
-                                                                public ImageIcon getImageIcon() {
-                                                                    try {
-                                                                        FileChannelWrapper grabch = NIOUtils.readableFileChannel(img);
-                                                                        BufferedImage frame = null;
-                                                                        try { 
-                                                                            FrameGrab grab = new FrameGrab(grabch);
-                                                                            for (int i = 0; i < 50; i++) {
-                                                                                grab.seekToFrameSloppy(50);
-                                                                                try {
-                                                                                    frame = grab.getFrame();
-                                                                                } catch (Exception e) {
-                                                                                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
-                                                                                }
-                                                                            }
-                                                                        } finally {
-                                                                            NIOUtils.closeQuietly(grabch);
-                                                                        }
-                                                                        if (frame != null) {
-                                                                            return new ImageIcon(frame);
-                                                                        }
-                                                                    } catch (Exception ex) {
-                                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                                    }
-                                                                    return null;
-                                                                }
-                                                            }, thumbFile, height) != null) {
-                                                                ctx.reroute(newRoute);
-                                                                return;
-                                                            }
-                                                        }
-                                                    } catch (IOException ex) {
-                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                    }
-                                                }
-                                            }
-                                            //TODO cache image refactor
-                                        }
-                                        ctx.next();
-                                    })
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
+                            router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
+                                    new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
                             );
                             router.route(wpath+"/thumb/*").handler(
                                     new UserAuthorizedHandler(authorizer, 
@@ -469,72 +317,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html");                                
                             } else {
                                 router.route(wpath+"/*").handler(
-                                        new UserAuthorizedHandler(authorizer, ctx -> {
-                                            File dirpathHtmlCacheFile = new File(dirpathHtmlCache);;
-                                            if (dirpathHtmlCacheFile.exists() && dirpathHtmlCacheFile.canWrite()) {
-                                            } else {
-                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can''t cache html into {0}", dirpathHtmlCacheFile.getAbsolutePath());
-                                                dirpathHtmlCacheFile = null;
-                                            }
-                                            String path = ctx.request().path();
-                                            try {
-                                                path = java.net.URLDecoder.decode(path, "UTF-8");
-                                            } catch (UnsupportedEncodingException ex) {
-                                                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                            }
-                                            if (path.endsWith(".html")) {
-                                                path = path.substring(wpathDelim.length());
-                                                File f = new File(dirpath, path);
-                                                if (f.exists()) { //TODO cache refactor
-
-                                                    String contentType = null;
-                                                    try {
-                                                        contentType = Files.probeContentType(Paths.get(f.getPath()));
-                                                    } catch (IOException ex) {
-                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                    }
-                                                    if (contentType != null) {
-                                                        ctx.response().putHeader("content-type", contentType);
-                                                        VertxOutputStream vos = new VertxOutputStream(ctx.response());
-                                                        try {
-                                                            ctx.response().setChunked(true);
-                                                            File cache = null;
-                                                            if (dirpathHtmlCacheFile != null) {
-                                                                cache = new File(dirpathHtmlCacheFile, path);
-                                                            }
-                                                            String fileCont;
-                                                            if (cache != null && cache.exists()) {
-                                                                fileCont = new String(Files.readAllBytes(cache.toPath()), "UTF-8");
-                                                            } else {
-                                                                fileCont = new String(Files.readAllBytes(f.toPath()), "UTF-8");
-                                                                fileCont = fileCont.replace("<!--${__htmlCmtE__}", "");
-                                                                fileCont = fileCont.replace("${__htmlCmtB__}-->", "<!--");
-                                                                if (cache != null) {
-                                                                    File parFile = cache.getParentFile();
-                                                                    try {
-                                                                        if (!parFile.exists()) {
-                                                                            parFile.mkdirs();
-                                                                        }
-                                                                        Files.write(cache.toPath(), fileCont.getBytes("UTF-8"));
-                                                                    } catch (IOException ex1) {
-                                                                        Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, "Can't cache html into " + cache.getAbsolutePath(), ex1);
-                                                                    }       
-                                                                }
-                                                            }
-                                                            vos.write(fileCont.getBytes("UTF-8"));
-                                                            vos.close();
-                                                        } catch (IOException ex) {
-                                                            Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
-                                                            ctx.fail(ex);
-                                                        }
-
-                                                        return;
-                                                    }
-
-                                                }
-                                            }
-                                            ctx.next();
-                                        })
+                                        new UserAuthorizedHandler(authorizer, new HtmlCacheHandler(dirpathHtmlCache, wpathDelim, dirpath))
                                 );
                             }
                             
