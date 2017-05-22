@@ -22,6 +22,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.PemKeyCertOptions;
+import io.vertx.core.net.SelfSignedCertificate;
 import io.vertx.ext.auth.AuthProvider;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.auth.oauth2.OAuth2Auth;
@@ -58,8 +59,8 @@ public class HttpVerticle extends AbstractVerticle {
     private String hostName = "localhost";
     private int port = 1945;
     private JsonObject config;
-    private String sslCertPathCer = "cert-04.cer";
-    private String sslKeyPathPem = "key-04.pem";
+    private String sslCertPathCer;// = "cert-04.cer";
+    private String sslKeyPathPem;// = "key-04.pem";
     private String appName = "SV-www";
     private JsonArray webs;
     private SimpleUserMatcher userMatcher;
@@ -321,10 +322,12 @@ public class HttpVerticle extends AbstractVerticle {
                                 );
                             }
                             
+                            ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
+                            genHandler.init();
                             if (jobj.containsKey("htmlgen")) {
                                 router.route(wpath+"/*").handler(
                                         new UserAuthorizedHandler(authorizer, 
-                                            new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath)
+                                            genHandler
                                         )
                                 );
                             }
@@ -397,13 +400,21 @@ public class HttpVerticle extends AbstractVerticle {
         }
         vertx.createHttpServer(options).requestHandler(router::accept)
                 .listen(getPort());
+        System.out.println("HTTP VERTICLE started");
     }
     
     protected void setSslCerts(HttpServerOptions options) {
-        PemKeyCertOptions pemOptions = new PemKeyCertOptions();
-        pemOptions.setKeyPath(getSslKeyPathPem()).setCertPath(getSslCertPathCer());
-        options.setSsl(true);
-        options.setPemKeyCertOptions(pemOptions);
+        if (getSslKeyPathPem() != null && getSslCertPathCer() != null) {
+            PemKeyCertOptions pemOptions = new PemKeyCertOptions();
+            pemOptions.setKeyPath(getSslKeyPathPem()).setCertPath(getSslCertPathCer());
+            options.setSsl(true);
+            options.setPemKeyCertOptions(pemOptions);
+        } else {
+            SelfSignedCertificate certificate = SelfSignedCertificate.create(); 
+            options.setKeyCertOptions(certificate.keyCertOptions());
+            options.setTrustOptions(certificate.trustOptions());
+            options.setSsl(true);
+        }
     }
     public static void secureSet(HttpServerResponse response) {
         response
@@ -467,4 +478,7 @@ public class HttpVerticle extends AbstractVerticle {
         return getSchemaUri(r) + r.path();
     }
     
+  public void stop() throws Exception {
+        System.out.println("HTTP VERTICLE stopped");
+  }
 }

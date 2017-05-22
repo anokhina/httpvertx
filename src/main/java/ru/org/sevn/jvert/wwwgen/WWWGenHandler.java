@@ -48,13 +48,14 @@ import ru.org.sevn.util.StartWithFilenameFilter;
 import ru.org.sevn.utilhtml.UtilHtml;
 import ru.org.sevn.utilwt.FileVideoIconSupplier;
 import ru.org.sevn.utilwt.ImageUtil;
+import ru.org.sevn.winurl.WinUrl;
 
 public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     
 	public static final String[] ICONS_EXT = new String[] {".png", ".jpg", ".jpeg"};
 	public static final String[] TXT_EXT = new String[] {".txt"};
 
-    private boolean force = true;
+    private boolean force = !true;
 	private VelocityEngine ve = new VelocityEngine();
     private String logo = "logo.png";
     private String favico = "logo.ico";
@@ -66,6 +67,22 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	private FileNameComparator ASC = new FileNameComparator();
 	private FileNameComparator DSC = new FileNameComparator(false);
 	private DirNotHiddenFilenameFilter dirFileFilter = new DirNotHiddenFilenameFilter();
+
+    private boolean isWinUrl(File f) {
+        return f.getName().toLowerCase().endsWith(".url");
+    }
+
+    private String getWinUrlText(File f) {
+        try {
+            WinUrl wurl = WinUrl.parseUrlContent(new String(Files.readAllBytes(f.toPath()),"UTF-8"), f.getName());
+            StringBuilder sb = new StringBuilder();
+            sb.append("<a href=\"").append(wurl.getSharedText()).append("\">").append(wurl.getSharedSubj()).append("</a>");
+            return sb.toString();
+        } catch (IOException ex) {
+            Logger.getLogger(WWWGenHandler.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return "";
+    }
     
 	static class HtmlContent {
 		private StringBuilder content = new StringBuilder();
@@ -241,9 +258,11 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		Menu m = new Menu().setId(id).setFile(file);
 		if (dp != null) {
 			m.setDirProperties(dp.clone());
+            m.getDirProperties().setModify(false);
 		}
 		File indexFile = new File(file, "index.html");
 		if (indexFile.exists()) {
+			m.getDirProperties().setHasIndex(true);
 			if (indexFile.lastModified() < file.lastModified()) {
 				m.getDirProperties().setModify(true);
 			} else {
@@ -257,7 +276,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 				
 			}
 		} else {
-			m.getDirProperties().setModify(true);
+			m.getDirProperties().setHasIndex(!true);
 		}
 		
 		m.setIconPath(getExists(file, ".icon", ICONS_EXT));
@@ -268,7 +287,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		m.getDirProperties().setOrder(getText(
 				FileUtil.getExistsFile(file, ".order", TXT_EXT),
 				m.getDirProperties().getOrder()));
-		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + file+":"+m.getDirProperties().getOrder());
+		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + m.isModify() + ":" + file+":"+m.getDirProperties().getOrder());
 		
 		m.getDirProperties().setContentCntMax(
 				getTextInt(
@@ -589,7 +608,13 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                 lastContent = appendContent(pageContent, getImgHref(root.getFile(), f, imgFilesMap, imgFiles), lastContent, "img");
             } else if (contentFilenameFilter.accept(f.getParentFile(), f.getName())) {
                 contentCnt++;
-                lastContent = appendContent(pageContent, getText(f), lastContent, "text");
+                String text2append;
+                if (isWinUrl(f)) {
+                    text2append = getWinUrlText(f);
+                } else {
+                    text2append = getText(f);
+                }
+                lastContent = appendContent(pageContent, text2append, lastContent, "text");
             } else if (vidFilenameFilter.accept(f.getParentFile(), f.getName())) {
                 contentCntImg++; //?????????
                 lastContent = appendContent(pageContent, getVidHref(root.getFile(), f, imgFilesMap), lastContent, "img");
@@ -628,7 +653,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         if (filePath.startsWith(rootDirPath)) {
             Menu root = makeMenu(".", rootDir, null);
             if (rootDir.equals(file)) {
-                applyContent(root, getContent(root, true, true));
+                applyMenuContent(root, getContent(root, true, true));
             } else {
                 ArrayList<File> parents = new ArrayList<>();
                 if (file.isDirectory()) {
@@ -651,7 +676,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                             //2
                             p.addMenu(m);
                             if (!f.equals(fromPath)) {
-                                applyContent(m, getContent(m, false, true));
+                                applyMenuContent(m, getContent(m, false, true));
                             } else {
                                 pn = m;
                             }
@@ -659,9 +684,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                     }
                     if (pn != null) {
                         if (i == 0) {
-                            applyContent(pn, getContent(pn, true, true));
+                            applyMenuContent(pn, getContent(pn, true, true));
                         } else {
-                            applyContent(pn, getContent(pn, false, false));
+                            applyMenuContent(pn, getContent(pn, false, false));
                         }
                     }
                     
@@ -673,11 +698,25 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         return null;
     }
     
-    private Menu applyContent(Menu m, HtmlContent cnt) {
+    private Menu applyMenuContent(Menu m, HtmlContent cnt) {
         if (cnt != null) {
             m.setContentFile(cnt.file);
         }
         return m;
+    }
+    protected FilenameFilter getContentFilenameFilter() {
+		FilenameFilter contentFilenameFilter = new ComplexFilenameFilter(
+                new StartWithFilenameFilter("", ".url"),
+                new StartWithFilenameFilter("content", ".html"),
+                new StartWithFilenameFilter("_content", ".html")
+        );
+        return contentFilenameFilter;
+    }
+    protected FilenameFilter getImgFilenameFilter() {
+        return new StartWithFilenameFilter("img-", ".jpg");
+    }
+    protected FilenameFilter getVidFilenameFilter() {
+        return new StartWithFilenameFilter("vid-", ".mp4");
     }
     
     public HtmlContent getContent(Menu root, boolean writeIt, boolean addSubMenu) {
@@ -696,7 +735,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                 }
                 HtmlContent cnt = getContent(m, false, addSubMenu);
                 if (cnt != null) {
-                    applyContent(m, cnt);
+                    applyMenuContent(m, cnt);
                 }
                 if (subContent == null) {
                     subContent = cnt;
@@ -707,12 +746,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             }
         }
         
-		FilenameFilter contentFilenameFilter = new ComplexFilenameFilter(
-                new StartWithFilenameFilter("content", ".html"),
-                new StartWithFilenameFilter("_content", ".html")
-        );
-		FilenameFilter imgFilenameFilter = new StartWithFilenameFilter("img-", ".jpg");
-		FilenameFilter vidFilenameFilter = new StartWithFilenameFilter("vid-", ".mp4");
+		FilenameFilter contentFilenameFilter = getContentFilenameFilter();
+		FilenameFilter imgFilenameFilter = getImgFilenameFilter();
+		FilenameFilter vidFilenameFilter = getVidFilenameFilter();
 		File[] files = sort(root.getFile().listFiles(
 				new ComplexFilenameFilter(
 						contentFilenameFilter,
@@ -724,7 +760,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             content = new HtmlContent(root);
             content.file = new File(root.getFile(), "index.html");
             
-            if(writeIt && (root.getDirProperties().isModify() || force)) {
+            if(writeIt && (root.isModify() || force)) {
                 writeContent(root, content, files, contentFilenameFilter, imgFilenameFilter, vidFilenameFilter, comparator);
             }
             
@@ -738,7 +774,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             } else {
                 content = subContent;
             }
-            if(writeIt && (root.getDirProperties().isModify() || force)) {
+            if(writeIt && (root.isModify() || force)) {
                 for (Menu m : root.getMenus()) {
                     File f = m.getContentFile();
                     if (f == null) {
@@ -746,7 +782,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
                     }
                     appendContent(emptyContent, getHref(root.getFile(), f, m.getAnyTitle()), "text", "text");
                 }
-                applyContent(emptyContent.menu, content);
+                applyMenuContent(emptyContent.menu, content);
                 write(emptyContent);
             }
         }
@@ -769,5 +805,213 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         }
         ctx.next();
     }
+    public void init() {
+        /*
+        Menu root = makeMenu(".", dirRoot, null);
+		fillMenu(root, false);
+        fillMenu(root, !false);
+                */
+    }
+	public HtmlContent fillMenu(Menu root, boolean writeContent) {
+		Comparator<File> comparator = getFileComparator(root.getDirProperties().getOrder());
+		
+		HtmlContent content = null;
+		HtmlContent subcontent = null;
+		if (!writeContent) {
+			for(File f : sort(root.getFile().listFiles(dirFileFilter), comparator)) { 
+				if (f.isDirectory()) {
+					root.addMenu(makeMenu(null, f, root.getDirProperties()));
+				}
+			}
+		}
+		for(Menu m : root.getMenus()) {
+			HtmlContent cnt = fillMenu(m, writeContent);
+			if (subcontent == null) {
+				subcontent = cnt;
+			}
+		}
+		
+		int contentCnt = 0;
+		int contentCntImg = 0;
+		int contentCntVid = 0;
+		FilenameFilter contentFilenameFilter = getContentFilenameFilter();
+		FilenameFilter imgFilenameFilter = getImgFilenameFilter();
+		FilenameFilter vidFilenameFilter = getVidFilenameFilter();
+		File[] files = sort(root.getFile().listFiles(
+				new ComplexFilenameFilter(
+						contentFilenameFilter,
+						imgFilenameFilter,
+						vidFilenameFilter
+						)
+			), comparator);
+		int pages = files.length / root.getDirProperties().getContentCntMax();
+//		if (files.length % contentCntMax > 0) {
+//			pages++;
+//		}
+		JsonArray imgFiles = null;
+		HashMap<String, Integer> imgFilesMap = new HashMap<>(); 
+		if (writeContent) {
+			File[] filesImg = sort(root.getFile().listFiles(
+					new ComplexFilenameFilter(
+							imgFilenameFilter,
+							vidFilenameFilter
+							)
+				), comparator);
+			imgFiles = new JsonArray();
+			int imgFilesIdx = -1;
+			for (File f: filesImg) {
+				JsonObject jobj = new JsonObject();
+				imgFiles.add(jobj);
+				imgFilesIdx++;
+				String imgComment = "&nbsp;";
+				if (imgFilenameFilter.accept(f.getParentFile(), f.getName())) {
+					try {
+						imgComment = UtilHtml.getCleanHtmlBodyContent(ImageUtil.getImageUserCommentString(f, "UTF-8"));
+						if (imgComment == null) {
+							imgComment = "&nbsp;";
+						}
+					} catch (UnsupportedEncodingException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
+					jobj.put("tp", 1); 
+				} else {
+					jobj.put("tp", 2); 
+				}
+				jobj.put("comment", imgComment);
+				jobj.put("name", f.getName());
+				imgFilesMap.put(f.getName(), imgFilesIdx);
+			}
+			writeJs(root.getFile(), imgFiles);
+		}
+		int page = 0;
+		for(File f : files) {
+			if (imgFilenameFilter.accept(f.getParentFile(), f.getName())) {
+				contentCntImg++;
+			} else if (contentFilenameFilter.accept(f.getParentFile(), f.getName())) {
+				contentCnt++;
+			} else if (vidFilenameFilter.accept(f.getParentFile(), f.getName())) {
+				contentCntImg++; // ?????
+			}
+			if (contentCnt >= root.getDirProperties().getContentCntMax() || 
+				contentCntImg >= root.getDirProperties().getContentCntMaxImg() ||
+				contentCntVid >= root.getDirProperties().getContentCntMaxVid()
+				) {
+				
+				contentCnt = 0;
+				contentCntImg = 0;
+				contentCntVid = 0;
+				page++;
+			}
+		}
+		if (contentCnt == 0 && contentCntImg == 0 && contentCntVid == 0) {
+		} else {
+			pages = page + 1;
+		}
+		
+		page = 0;
+		contentCnt = 0;
+		contentCntImg = 0;
+		contentCntVid = 0;
+		HtmlContent pageContent = null;
+		String lastContent = null;
+		for(File f : files) {
+			
+			if (content == null) {
+				pageContent = new HtmlContent(root);
+				pageContent.file = new File(root.getFile(), "index.html");
+				content = pageContent;
+				if (!writeContent) {
+					break;
+				}
+				if(!root.isModify()) {
+					if (!force) {
+						return applyContent(root, content);
+					}
+				}
+				if (pages > 1) {
+					lastContent = appendContent(pageContent, pagination(page, pages, root.getFile()), lastContent, "page");
+				}
+			}
+			if (writeContent) {
+				if (imgFilenameFilter.accept(f.getParentFile(), f.getName())) {
+					contentCntImg++;
+					lastContent = appendContent(pageContent, getImgHref(root.getFile(), f, imgFilesMap, imgFiles), lastContent, "img");
+				} else
+				if (contentFilenameFilter.accept(f.getParentFile(), f.getName())) {
+					contentCnt++;
+					lastContent = appendContent(pageContent, getText(f), lastContent, "text");
+				} else
+				if (vidFilenameFilter.accept(f.getParentFile(), f.getName())) {
+					contentCntImg++; //?????????
+					lastContent = appendContent(pageContent, getVidHref(root.getFile(), f, imgFilesMap), lastContent, "img");
+				}
+				if (contentCnt >= root.getDirProperties().getContentCntMax() || 
+					contentCntImg >= root.getDirProperties().getContentCntMaxImg() ||
+					contentCntVid >= root.getDirProperties().getContentCntMaxVid() 
+					) {
+					
+					contentCnt = 0;
+					contentCntImg = 0;
+					contentCntVid = 0;
+
+					lastContent = appendContent(pageContent, pagination(page, pages, root.getFile()), lastContent, "page");
+					if (content != pageContent) {
+						write(pageContent);
+					}
+					page++;
+					pageContent = new HtmlContent(root);
+					pageContent.file = new File(root.getFile(), "index" + (page+1) + ".html");
+					lastContent = appendContent(pageContent, pagination(page, pages, root.getFile()), lastContent, "page");
+				}
+			}
+		}
+		if (writeContent) {
+			if (pageContent != null && content != pageContent) {
+				lastContent = appendContent(pageContent, pagination(page, pages, root.getFile()), lastContent, "page");
+				write(pageContent);
+			}
+			if (content != null) {
+				write(content);
+			}
+		}
+		HtmlContent emptyContent = null;
+		if (content == null) {
+			emptyContent = new HtmlContent(root);
+			emptyContent.file = new File(root.getFile(), "index.html");
+			for (Menu m : root.getMenus()) {
+				File f = m.getContentFile();
+				if (f == null) {
+					f = m.getFile();
+				}
+				appendContent(emptyContent, getHref(root.getFile(), f, m.getAnyTitle()), "text", "text");
+			}
+		}
+		if (content == null && subcontent != null) {
+			content = subcontent;
+		}
+		if (content == null) {
+			content = emptyContent;
+			if(!root.isModify()) {
+				if (!force) {
+					return applyContent(root, content);
+				}
+			}
+		}
+		if (writeContent && emptyContent != null) {
+			lastContent = appendContent(emptyContent, "\n", null, "text");
+			write(emptyContent);
+		}
+		//TODO
+		// up menu
+		// selected index - the first
+		
+		//root.getMenus().clear();
+		return applyContent(root, content);
+	}
+	private HtmlContent applyContent(Menu root, HtmlContent content) {
+		root.setContentFile(content.file);
+		return content;
+	}
     
 }

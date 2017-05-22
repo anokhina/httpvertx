@@ -18,6 +18,7 @@ package ru.org.sevn.jvert.wwwgen;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import java.io.File;
 import java.io.IOException;
@@ -32,12 +33,22 @@ import ru.org.sevn.jvert.VertxOutputStream;
 
 public class ZipHandler implements io.vertx.core.Handler<RoutingContext> {
 
-    private final String wpathDelim;
-    private final String dirpath;
+    private final JsonObject config;
     
     public ZipHandler(String wpathDelim, String dirpath) {
-        this.wpathDelim = wpathDelim;
-        this.dirpath = dirpath;
+        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", wpathDelim));
+    }
+    
+    public ZipHandler(JsonObject config) {
+        this.config = config;
+    }
+    
+    protected String getWpathDelim() {
+        return config.getString("wpathDelim");
+    }
+    
+    protected String getDirpath() {
+        return config.getString("dirpath");
     }
     
     @Override
@@ -46,13 +57,13 @@ public class ZipHandler implements io.vertx.core.Handler<RoutingContext> {
         String zipMode = r.getParam("zip");
         if (zipMode != null) {
             String path = r.path();
-            path = path.substring(wpathDelim.length());
+            path = path.substring(getWpathDelim().length());
             try {
                 path = java.net.URLDecoder.decode(path, "UTF-8");
             } catch (UnsupportedEncodingException ex) {
                 Logger.getLogger(ZipHandler.class.getName()).log(Level.SEVERE, null, ex);
             }
-            File dir = new File(dirpath, path);
+            File dir = new File(getDirpath(), path);
             if (dir.exists()) {
                 if (!dir.isDirectory()) {
                     dir = dir.getParentFile();

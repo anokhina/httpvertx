@@ -19,7 +19,7 @@ import io.vertx.core.VertxOptions;
 
 public class VertxApp {
     public static void main(String[] args) {
-        Vertx vertx = Vertx.vertx(new VertxOptions().setMaxEventLoopExecuteTime(2L * 1000 * 1000000));
+        Vertx vertx = Vertx.vertx(new VertxOptions().setMaxEventLoopExecuteTime(200L * 1000 * 1000000));
         vertx.deployVerticle(new Main(), stringAsyncResult -> {
             System.out.println("BasicVerticle deployment complete");
         });

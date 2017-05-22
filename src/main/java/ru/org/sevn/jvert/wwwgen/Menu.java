@@ -162,5 +162,19 @@ public class Menu {
 		}
 		return 1 + parent.getLevel();
 	}
-	
+    public boolean isModify() {	
+        if (getDirProperties().isModify()) {
+            return true;
+        } else {
+            for (Menu m : menus) {
+                if (m.isModify()) {
+                    return true;
+                }
+            }
+        }
+        if (!getDirProperties().isHasIndex()) {
+            return true;
+        }
+        return false;
+    }
 }

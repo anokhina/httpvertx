@@ -22,6 +22,7 @@ public class DirProperties {
 	private String order;
 	private boolean singlePage;
 	private boolean modify;
+	private boolean hasIndex;
 	public boolean isModify() {
 		return modify;
 	}
@@ -67,4 +68,12 @@ public class DirProperties {
 	public void setContentCntMaxVid(int contentCntVid) {
 		this.contentCntMaxVid = contentCntVid;
 	}
+
+    public boolean isHasIndex() {
+        return hasIndex;
+    }
+
+    public void setHasIndex(boolean hasIndex) {
+        this.hasIndex = hasIndex;
+    }
 }
