@@ -269,7 +269,16 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 				for (File f : file.listFiles(new NotFilenameFilter("index"))) {
 					if (indexFile.lastModified() < f.lastModified()) {
 						//System.err.println("+++++++"+f+":"+indexFile);
-						m.getDirProperties().setModify(true);
+                        if (f.isDirectory()) {
+                            for (File ff: file.listFiles(new NotFilenameFilter("index"))) {
+                                if (indexFile.lastModified() < ff.lastModified()) {
+                                    m.getDirProperties().setModify(true);
+                                    break;
+                                }
+                            }
+                        } else {
+                            m.getDirProperties().setModify(true);
+                        }
 						break;
 					}
 				}
@@ -287,7 +296,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		m.getDirProperties().setOrder(getText(
 				FileUtil.getExistsFile(file, ".order", TXT_EXT),
 				m.getDirProperties().getOrder()));
-		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + m.isModify() + ":" + file+":"+m.getDirProperties().getOrder());
+		System.err.println("---- upd--------"+m.getDirProperties().isModify() + ":" + m.isModify() + ":" + m.isModifyRootSibling() + ":" + file+":"+m.getDirProperties().getOrder());
 		
 		m.getDirProperties().setContentCntMax(
 				getTextInt(
@@ -760,7 +769,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             content = new HtmlContent(root);
             content.file = new File(root.getFile(), "index.html");
             
-            if(writeIt && (root.isModify() || force)) {
+            if(writeIt && (root.isModifyRootSibling() || force)) {
                 writeContent(root, content, files, contentFilenameFilter, imgFilenameFilter, vidFilenameFilter, comparator);
             }
             
@@ -774,7 +783,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
             } else {
                 content = subContent;
             }
-            if(writeIt && (root.isModify() || force)) {
+            if(writeIt && (root.isModifyRootSibling() || force)) {
                 for (Menu m : root.getMenus()) {
                     File f = m.getContentFile();
                     if (f == null) {
@@ -812,6 +821,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         fillMenu(root, !false);
                 */
     }
+    /*
 	public HtmlContent fillMenu(Menu root, boolean writeContent) {
 		Comparator<File> comparator = getFileComparator(root.getDirProperties().getOrder());
 		
@@ -1013,5 +1023,5 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		root.setContentFile(content.file);
 		return content;
 	}
-    
+*/    
 }

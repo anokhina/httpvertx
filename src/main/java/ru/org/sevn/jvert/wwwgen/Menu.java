@@ -177,4 +177,27 @@ public class Menu {
         }
         return false;
     }
+    public boolean isModifyRootSibling() {	
+        boolean ret = isModify();
+        if (!ret) {
+            ret = isModifyParentSibling(this, parent);
+            if (!ret) {
+                ret = isModifyParentSibling(this, getRoot(this));
+            }
+        }
+        return ret;
+    }
+    private static boolean isModifyParentSibling(Menu m, Menu parent) {
+        boolean ret = false;
+        if (parent != null) {
+            for(Menu s : parent.getMenus()) {
+                if (s != m) {
+                    ret = s.getDirProperties().isModify();
+                    if (ret) return ret;
+                }
+            }
+            //ret = parent.getDirProperties().isModify();
+        }
+        return ret;
+    }
 }
