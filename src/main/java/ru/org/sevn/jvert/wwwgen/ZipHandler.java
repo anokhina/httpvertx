@@ -36,7 +36,7 @@ public class ZipHandler implements io.vertx.core.Handler<RoutingContext> {
     private final JsonObject config;
     
     public ZipHandler(String wpathDelim, String dirpath) {
-        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", wpathDelim));
+        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath));
     }
     
     public ZipHandler(JsonObject config) {
