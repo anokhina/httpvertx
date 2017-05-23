@@ -39,4 +39,6 @@ public interface UserMatcher {
     }
     
     boolean updateUser(User u, JsonObject jobj);
+    
+    void refreshCheck();
 }

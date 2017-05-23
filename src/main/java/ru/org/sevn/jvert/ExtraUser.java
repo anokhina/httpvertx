@@ -31,13 +31,22 @@ public class ExtraUser implements User {
     private JsonObject localExtraData;
     private Set<String> groups = new HashSet<>();
     private String authSystem;
+    
+    private transient UserMatcher userMatcher;
 
+    /*
     public static void fillFrom(ExtraUser to, ExtraUser from) {
         if (from.extraData != null) { to.extraData = from.extraData.copy(); }
         if (from.localExtraData != null) { to.localExtraData = from.localExtraData.copy(); }
         if (from.groups != null) { to.groups.addAll(from.groups); }
     }
-    public static void updateUserInfo(JsonObject jobj, ExtraUser euser) {
+    */
+    private void updateUserInfo() {
+        if (userMatcher != null) {
+            updateUserInfo(userMatcher.getUserInfo(this), this);
+        }
+    }
+    private static void updateUserInfo(JsonObject jobj, ExtraUser euser) {
         if (jobj != null) {
             jobj = jobj.copy();
             jobj.remove("token");
@@ -45,11 +54,14 @@ public class ExtraUser implements User {
         }
         euser.setLocalExtraData(jobj);
     }
+    private void setUserMatcher(UserMatcher um) {
+        this.userMatcher = um;
+    }
     public static ExtraUser upgradeUserInfo(UserMatcher userMatcher, ExtraUser euser) {
         Collection<String> groups = userMatcher.getGroups(euser);
         if (groups != null) {
-            updateUserInfo(userMatcher.getUserInfo(euser), euser);
-            euser.getGroups().addAll(groups);
+            euser.setUserMatcher(userMatcher);
+            euser.updateUserInfo();
             return euser;
         }
         return null;
@@ -87,7 +99,7 @@ public class ExtraUser implements User {
         putNotNul(ret, "id", getId());
         putNotNul(ret, "authSystem", authSystem);
         putNotNul(ret, "extraData", extraData);
-        putNotNul(ret, "localExtraData", localExtraData);
+        putNotNul(ret, "localExtraData", getLocalExtraData());
         if (full) {
             putNotNul(ret, "principal", user.principal());
         }
@@ -128,7 +140,13 @@ public class ExtraUser implements User {
     }
 
     public Set<String> getGroups() {
-        return groups;
+        if (userMatcher != null) {
+            userMatcher.refreshCheck();
+            Collection<String> grps = userMatcher.getGroups(this);
+            this.groups.clear();
+            this.groups.addAll(grps);
+        }        
+        return this.groups;
     }
 
     public void setGroups(Set<String> groups) {
@@ -136,6 +154,7 @@ public class ExtraUser implements User {
     }
 
     public JsonObject getLocalExtraData() {
+        updateUserInfo();
         return localExtraData;
     }
 

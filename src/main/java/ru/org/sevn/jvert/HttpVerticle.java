@@ -237,7 +237,7 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
 
         {
-            InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(userMatcher, new PassAuth(saltPrefix));
+            InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(fileAuthProvider);
             router.route("/www/invite/*").handler(new InviteHandler("/www/invite/"));
             router.route("/www/invite/*").handler(new WebpathHandler());
             router.route("/www/inviteauth").handler(MultiFormLoginHandlerImpl.create(inviteAuthProvider));

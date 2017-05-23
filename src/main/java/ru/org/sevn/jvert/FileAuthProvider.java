@@ -60,5 +60,13 @@ public class FileAuthProvider implements AuthProvider {
         }
         resultHandler.handle(Future.failedFuture("Invalid username/password"));
     }
+
+    public UserMatcher getUserMatcher() {
+        return userMatcher;
+    }
+
+    public PassAuth getAuth() {
+        return auth;
+    }
     
 }

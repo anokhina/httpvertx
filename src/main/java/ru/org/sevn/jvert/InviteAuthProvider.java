@@ -25,15 +25,12 @@ import ru.org.sevn.jsecure.PassAuth;
 
 public class InviteAuthProvider implements AuthProvider {
     
-    private final UserMatcher userMatcher;
-    private final PassAuth auth;
+    private final FileAuthProvider fileAuthProvider;
 
-    public InviteAuthProvider(UserMatcher um, PassAuth auth) {
-        this.userMatcher = um;
-        this.auth = auth;
+    public InviteAuthProvider(FileAuthProvider fileAuthProvider) {
+        this.fileAuthProvider = fileAuthProvider;
     }
     
-    public static final String AUTH_SYSTEM = "local";
     public static final String INV_SYSTEM = "inv";
     
     @Override
@@ -62,26 +59,33 @@ public class InviteAuthProvider implements AuthProvider {
             resultHandler.handle(Future.failedFuture("password mismatch"));
             return;
         }
-        JsonObject jobj0 = userMatcher.getUserInfo(AUTH_SYSTEM + ":" + username);
+        JsonObject jobj0 = getUserMatcher().getUserInfo(FileAuthProvider.AUTH_SYSTEM + ":" + username);
         if (jobj0 != null) {
             resultHandler.handle(Future.failedFuture("user exists"));
             return;
         }
-        JsonObject jobj = userMatcher.getUserInfo(INV_SYSTEM + ":" + username0);
+        JsonObject jobj = getUserMatcher().getUserInfo(INV_SYSTEM + ":" + username0);
         if (jobj != null) {
             PlainUser puser = new PlainUser(username0);
-            puser.setAuthProvider(this);
+            puser.setAuthProvider(fileAuthProvider);
             
             ExtraUser user = new ExtraUser(INV_SYSTEM, puser);
-            ExtraUser.upgradeUserInfo(userMatcher, user);
-            if (userMatcher.updateUser(user, AUTH_SYSTEM + ":" + username, auth.getHashString(password, username))) {
-                user.setAuthSystem(AUTH_SYSTEM);
+            ExtraUser.upgradeUserInfo(getUserMatcher(), user);
+            if (getUserMatcher().updateUser(user, FileAuthProvider.AUTH_SYSTEM + ":" + username, getAuth().getHashString(password, username))) {
+                user.setAuthSystem(FileAuthProvider.AUTH_SYSTEM);
             
                 resultHandler.handle(Future.succeededFuture(user));
                 return;
             }
         }
         resultHandler.handle(Future.failedFuture("Invalid username/password"));
+    }
+    public UserMatcher getUserMatcher() {
+        return fileAuthProvider.getUserMatcher();
+    }
+
+    public PassAuth getAuth() {
+        return fileAuthProvider.getAuth();
     }
     
 }

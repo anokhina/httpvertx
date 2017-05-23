@@ -33,8 +33,30 @@ public class SimpleUserMatcher implements UserMatcher {
 
     //config = new JsonObject(new String(Files.readAllBytes(getConfigJsonPath()), "UTF-8"))
     private File file;
+    private long fileTime;
     public SimpleUserMatcher(String filePath) throws IOException {
         this.file = new File(filePath);
+        this.fileTime = file.lastModified();
+        refresh();
+    }
+    
+    public synchronized void refreshCheck() {
+        if (fileTime < file.lastModified()) {
+            refresh();
+        }
+    }
+    public synchronized void refresh() {
+        LinkedHashMap<String, JsonObject> ug;
+        try {
+            ug = makeuserGroups();
+            this.fileTime = file.lastModified();
+            userGroups = ug;
+        } catch (IOException ex) {
+            Logger.getLogger(SimpleUserMatcher.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    private LinkedHashMap<String, JsonObject> makeuserGroups() throws IOException {
+        LinkedHashMap<String, JsonObject> userGroups = new LinkedHashMap<>();
         JsonArray arr = new JsonArray(new String(Files.readAllBytes(file.toPath()), "UTF-8"));
         for (Object o : arr) {
             if (o instanceof JsonObject) {
@@ -44,11 +66,13 @@ public class SimpleUserMatcher implements UserMatcher {
                 }
             }
         }
+        return userGroups;
     }
 
     @Override
     public Collection<String> getGroups(User u) {
         if (u instanceof ExtraUser) {
+            refreshCheck();
             ExtraUser user = (ExtraUser) u;
             JsonObject jobj = userGroups.get(user.getId());
             if (jobj != null) {
@@ -70,6 +94,7 @@ public class SimpleUserMatcher implements UserMatcher {
 
     @Override
     public JsonObject getUserInfo(User u) {
+        refreshCheck();
         String id = getId(u);
         if (id != null) {
             return getUserInfo(id);
@@ -80,6 +105,7 @@ public class SimpleUserMatcher implements UserMatcher {
     @Override
     public JsonObject getUserInfo(String uid) {
         if (uid != null) {
+            refreshCheck();
             return userGroups.get(uid);
         }
         return null;
@@ -95,6 +121,7 @@ public class SimpleUserMatcher implements UserMatcher {
 
     @Override
     public synchronized boolean updateUser(User u, JsonObject jobj2set) {
+        refreshCheck();
         String id = jobj2set.getString("id");
         JsonObject jobjEx = getUserInfo(id);
         if (jobjEx == null) {
@@ -117,7 +144,9 @@ public class SimpleUserMatcher implements UserMatcher {
                     
                     JsonArray jarr = new JsonArray(new ArrayList(userGroups.values()));
                     Files.write(file.toPath(), jarr.encodePrettily().getBytes("UTF-8"));
-                    ExtraUser.updateUserInfo(jobj, (ExtraUser)u);
+                    fileTime = file.lastModified();
+                    ((ExtraUser)u).setLocalExtraData(jobj);
+                    ExtraUser.upgradeUserInfo(this, (ExtraUser)u);
                     return true;
                 } catch (Exception ex) {
                     Logger.getLogger(SimpleUserMatcher.class.getName()).log(Level.SEVERE, null, ex);

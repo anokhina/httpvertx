@@ -36,7 +36,11 @@ public class GroupUserAuthorizer implements UserAuthorizer {
             ExtraUser user = (ExtraUser) u;
             if (groups.size() > 0) {
                 for (String grp : this.groups) {
-                    if (user.getGroups().contains(grp)) {
+                    Set<String> groups = user.getGroups();
+                    if (groups.contains("__forbidden__")) {
+                        return false;
+                    }
+                    if (groups.contains(grp)) {
                         return true;
                     }
                 }
