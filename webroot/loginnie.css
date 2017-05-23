@@ -1,0 +1,5 @@
+.form-signin input[type="text"],
+.form-signin input[type="name"],
+.form-signin input[type="password"] {
+	width: 87% !important;
+}
