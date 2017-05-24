@@ -66,6 +66,7 @@ public class HttpVerticle extends AbstractVerticle {
     private JsonArray webs;
     private SimpleUserMatcher userMatcher;
     private String saltPrefix = "salt";
+    private String schema;
 
     public boolean isUseSsl() {
         return useSsl;
@@ -105,6 +106,13 @@ public class HttpVerticle extends AbstractVerticle {
                         String invitePath = auth.getString("invitePath", null);
                         userMatcher = new SimpleUserMatcher(invitePath);
                     }
+                } catch (Exception e) {
+                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
+            if (config.containsKey("schema")) {
+                try {
+                    schema = config.getString("schema");
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
                 }
@@ -288,16 +296,24 @@ public class HttpVerticle extends AbstractVerticle {
                             String wpath = "/"+webpath;
                             String wpathDelim = "/"+webpath+"/";
 
-                            ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
-                            genHandler.init();
-                            final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler);
-                            vertx.deployVerticle(rssVerticle);
-                            router.route(wpath+"/*").handler(ctx -> {
-                                rssVerticle.setSchema(getSchemaUri(ctx.request()));
-                                ctx.next();
-                            });
-                            router.route(wpath+"/rss").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHandler()));
-                            router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
+                            ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = null;
+                            if (jobj.containsKey("htmlgen")) {
+                                genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
+                                genHandler.init();
+                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler);
+                                vertx.deployVerticle(rssVerticle);
+                                if (schema == null) {
+                                    router.route(wpath+"/*").handler(ctx -> {
+                                        rssVerticle.setSchema(getSchemaUri(ctx.request()));
+                                        ctx.next();
+                                    });
+                                } else {
+                                    rssVerticle.setSchema(schema);
+                                }
+                            
+                                router.route(wpath+"/rss").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHandler()));
+                                router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
+                            }
                             
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             router.route(wpath+"/*").handler(oauth2);
@@ -335,7 +351,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 );
                             }
                             
-                            if (jobj.containsKey("htmlgen")) {
+                            if (jobj.containsKey("htmlgen") && jobj.getJsonObject("htmlgen").getBoolean("on", false)) {
                                 router.route(wpath+"/*").handler(
                                         new UserAuthorizedHandler(authorizer, 
                                             genHandler

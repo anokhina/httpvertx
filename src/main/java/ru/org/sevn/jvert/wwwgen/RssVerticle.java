@@ -157,6 +157,9 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
                     ret = true;
                 }
             }
+            if (!new File(dir, "index.html").exists()) {
+                Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), dir);
+            }
         }
         return ret;
     }
@@ -168,7 +171,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
             maxLastUpdated = Math.max(maxLastUpdated, f.lastModified());
         }
         //TODO
-        //Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), d);
+        Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), d);
         
         String lnk = schema + this.genHandler.getWebpath() + FileUtil.getRelativePath(this.genHandler.getDirRoot(), d);
         String title = WWWGenHandler.getText(FileUtil.getExistsFile(d, WWWGenHandler.FILE_NAME_TITLE, WWWGenHandler.TXT_EXT), d.getName());
