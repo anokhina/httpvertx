@@ -68,6 +68,14 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	private FileNameComparator DSC = new FileNameComparator(false);
 	private DirNotHiddenFilenameFilter dirFileFilter = new DirNotHiddenFilenameFilter();
 
+    public File getDirRoot() {
+        return dirRoot;
+    }
+
+    public String getWebpath() {
+        return wpathDelim;
+    }
+    
     private boolean isWinUrl(File f) {
         return f.getName().toLowerCase().endsWith(".url");
     }
@@ -87,10 +95,37 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	static class HtmlContent {
 		private StringBuilder content = new StringBuilder();
 		private File file;
+		private File fileOut;
 		private final Menu menu;
 		public HtmlContent(Menu f) {
 			menu = f;
 		}
+
+        public StringBuilder getContent() {
+            return content;
+        }
+
+        public void setContent(StringBuilder content) {
+            this.content = content;
+        }
+
+        public File getFile() {
+            return file;
+        }
+
+        public void setFile(File file) {
+            this.file = file;
+        }
+
+        public File getFileOut() {
+            if (fileOut == null) return file;
+            return fileOut;
+        }
+
+        public void setFileOut(File fileOut) {
+            this.fileOut = fileOut;
+        }
+        
 	}
 
     public WWWGenHandler(JsonObject htmlgen, File dirr, String webpath) {
@@ -159,14 +194,18 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         return this;
     }
     
-	private String getHref(File root, File img, String title) {
+	protected String getHref(String href, String title, String titlePrefix) {
 		Template templ = ve.getTemplate("linkTempl.html");
 		StringWriter writer = new StringWriter();
 		VelocityContext context = new VelocityContext();
-		context.put("href", FileUtil.getRelativePath(root, img));
+		context.put("href", href);
 		context.put("title", title);
+        context.put("titlePrefix", titlePrefix);
 		templ.merge(context, writer);
 		return writer.toString();
+    }
+	protected String getHref(File root, File img, String title) {
+		return getHref(FileUtil.getRelativePath(root, img), title, null);
 	}
 	private String getVidHref(File root, File img, HashMap<String, Integer> imgFilesMap) {
 		Template templ = ve.getTemplate("videoTempl.html");
@@ -289,8 +328,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		}
 		
 		m.setIconPath(getExists(file, ".icon", ICONS_EXT));
-		m.setTitle(getText(FileUtil.getExistsFile(file, ".title", TXT_EXT)));
-		m.setDescription(getText(FileUtil.getExistsFile(file, ".description", TXT_EXT)));
+		m.setTitle(getText(FileUtil.getExistsFile(file, FILE_NAME_TITLE, TXT_EXT)));
+		m.setDescription(getText(FileUtil.getExistsFile(file, FILE_NAME_DESCR, TXT_EXT)));
 		m.setSinglePage(getExists(file, ".single", TXT_EXT) != null);
 		
 		m.getDirProperties().setOrder(getText(
@@ -310,6 +349,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 						));
 		return m;
 	}
+    
+    public static final String FILE_NAME_TITLE = ".title";
+    public static final String FILE_NAME_DESCR = ".description";
     
 	public static String getText (File f, String name, String ... extensions) {
 		File fl = FileUtil.getExistsFile(f, name, extensions);
@@ -482,10 +524,11 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		return content;
 	}
     
-	private void write(HtmlContent content) {
+	protected void write(HtmlContent content) {
+        if (content == null) return;
         Writer writer = null;
 		try {
-			writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(content.file), "UTF-8"));
+			writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(content.getFileOut()), "UTF-8"));
 		} catch (UnsupportedEncodingException | FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -656,11 +699,14 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 
     }
     
-    private Menu makeRelativeMenu(File rootDir, File file) {
+    public Menu makeRootMenu(File rootDir) {
+        return makeMenu(".", rootDir, null);
+    }
+    protected Menu makeRelativeMenu(File rootDir, File file) {
         String rootDirPath = rootDir.getAbsolutePath();
         String filePath = file.getAbsolutePath();
         if (filePath.startsWith(rootDirPath)) {
-            Menu root = makeMenu(".", rootDir, null);
+            Menu root = makeRootMenu(rootDir);
             if (rootDir.equals(file)) {
                 applyMenuContent(root, getContent(root, true, true));
             } else {
@@ -713,7 +759,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         }
         return m;
     }
-    protected FilenameFilter getContentFilenameFilter() {
+    private FilenameFilter contentFilenameFilter = makeContentFilenameFilter();
+    public FilenameFilter makeContentFilenameFilter() {
 		FilenameFilter contentFilenameFilter = new ComplexFilenameFilter(
                 new StartWithFilenameFilter("", ".url"),
                 new StartWithFilenameFilter("content", ".html"),
@@ -721,11 +768,23 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         );
         return contentFilenameFilter;
     }
-    protected FilenameFilter getImgFilenameFilter() {
+    protected FilenameFilter getContentFilenameFilter() {
+        return contentFilenameFilter;
+    }    
+    private FilenameFilter imgFilenameFilter = makeImgFilenameFilter();
+    public FilenameFilter makeImgFilenameFilter() {
         return new StartWithFilenameFilter("img-", ".jpg");
     }
-    protected FilenameFilter getVidFilenameFilter() {
+    protected FilenameFilter getImgFilenameFilter() {
+        return imgFilenameFilter;
+    }
+    
+    private FilenameFilter vidFilenameFilter = makeVidFilenameFilter();
+    public FilenameFilter makeVidFilenameFilter() {
         return new StartWithFilenameFilter("vid-", ".mp4");
+    }
+    protected FilenameFilter getVidFilenameFilter() {
+        return vidFilenameFilter;
     }
     
     public HtmlContent getContent(Menu root, boolean writeIt, boolean addSubMenu) {

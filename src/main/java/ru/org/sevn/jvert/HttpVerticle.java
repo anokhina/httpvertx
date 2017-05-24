@@ -15,6 +15,7 @@
  */
 package ru.org.sevn.jvert;
 
+import ru.org.sevn.jvert.wwwgen.RssVerticle;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerRequest;
@@ -280,12 +281,24 @@ public class HttpVerticle extends AbstractVerticle {
                             String dirpath = jobj.getString("dirpath");
                             String dirpathThumb = jobj.getString("dirpathThumb");
                             String dirpathThumbBig = jobj.getString("dirpathThumbBig");
+                            String dirpathRss = jobj.getString("dirpathRss");
                             String dirpathHtmlCache = jobj.getString("dirpathHtmlCache");
                             JsonArray groups = jobj.getJsonArray("groups");
                             GroupUserAuthorizer authorizer = new GroupUserAuthorizer(groups);
                             String wpath = "/"+webpath;
                             String wpathDelim = "/"+webpath+"/";
 
+                            ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
+                            genHandler.init();
+                            final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler);
+                            vertx.deployVerticle(rssVerticle);
+                            router.route(wpath+"/*").handler(ctx -> {
+                                rssVerticle.setSchema(getSchemaUri(ctx.request()));
+                                ctx.next();
+                            });
+                            router.route(wpath+"/rss").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHandler()));
+                            router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
+                            
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             router.route(wpath+"/*").handler(oauth2);
                             router.route(wpath).handler(ctx -> {
@@ -322,8 +335,6 @@ public class HttpVerticle extends AbstractVerticle {
                                 );
                             }
                             
-                            ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
-                            genHandler.init();
                             if (jobj.containsKey("htmlgen")) {
                                 router.route(wpath+"/*").handler(
                                         new UserAuthorizedHandler(authorizer, 
