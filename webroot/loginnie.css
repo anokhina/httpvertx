@@ -3,3 +3,7 @@
 .form-signin input[type="password"] {
 	width: 87% !important;
 }
+.label {
+color: gray;
+padding-bottom: 5px;
+}

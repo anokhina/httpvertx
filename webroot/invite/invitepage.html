@@ -19,17 +19,37 @@
 <img src="../img/logo_txt.png" class="logoimg"/>
 <form action="/www/inviteauth" method="post" class="form-signin">
     <h2 class="form-signin-heading">Регистрация / Registration</h2>
+<!--[if IE]>
+    <div class="label">
+Приглашение / Invite
+    </div>
+<![endif]-->
     <div>
         <input type="text" name="username0" class="input-block-level" placeholder="Приглашение / Invite" value="inv:invitation">
     </div>
+<!--[if IE]>
+    <div class="label">
+Имя пользователя / User name
+    </div>
+<![endif]-->
     <div>
         <input type="name" name="username" class="input-block-level" placeholder="Имя пользователя / User name"/>
     </div>
+<!--[if IE]>
+    <div class="label">
+Пароль / password
+    </div>
+<![endif]-->
     <div>
         <input type="password" name="password" class="input-block-level" placeholder="Пароль / password"/>
     </div>
+<!--[if IE]>
+    <div class="label">
+Пароль(повтор) / Retype password
+    </div>
+<![endif]-->
     <div>
-        <input type="password" name="password2" class="input-block-level" placeholder="Пароль(повтор) / Repeat password"/>
+        <input type="password" name="password2" class="input-block-level" placeholder="Пароль(повтор) / Retype password"/>
     </div>
     <div>
         <input type="submit" value="Отправить / Submit" class="btn btn-large btn-primary"/>
