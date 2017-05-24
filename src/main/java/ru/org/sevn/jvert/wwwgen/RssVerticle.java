@@ -81,6 +81,9 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
     public RssVerticle(File f, File o, WWWGenHandler filterSupplier) {
         this(f, o, filterSupplier, 0, 5, TimeUnit.SECONDS);
     }
+    public RssVerticle(File f, File o, WWWGenHandler filterSupplier, long period) {
+        this(f, o, filterSupplier, 0, period, TimeUnit.SECONDS);
+    }
     public RssVerticle(File f, File o, WWWGenHandler filterSupplier, long initialDelay, long period, TimeUnit unit) {
         this.genHandler = filterSupplier;
         dir = f;

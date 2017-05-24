@@ -67,6 +67,7 @@ public class HttpVerticle extends AbstractVerticle {
     private SimpleUserMatcher userMatcher;
     private String saltPrefix = "salt";
     private String schema;
+    private long scanPeriod = 5;
 
     public boolean isUseSsl() {
         return useSsl;
@@ -113,6 +114,13 @@ public class HttpVerticle extends AbstractVerticle {
             if (config.containsKey("schema")) {
                 try {
                     schema = config.getString("schema");
+                } catch (Exception e) {
+                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
+            if (config.containsKey("scanPeriod")) {
+                try {
+                    scanPeriod = config.getLong("scanPeriod");
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
                 }
@@ -292,6 +300,7 @@ public class HttpVerticle extends AbstractVerticle {
                             String dirpathRss = jobj.getString("dirpathRss");
                             String dirpathHtmlCache = jobj.getString("dirpathHtmlCache");
                             JsonArray groups = jobj.getJsonArray("groups");
+                            long scanPeriod = jobj.getLong("scanPeriod", this.scanPeriod);
                             GroupUserAuthorizer authorizer = new GroupUserAuthorizer(groups);
                             String wpath = "/"+webpath;
                             String wpathDelim = "/"+webpath+"/";
@@ -300,11 +309,13 @@ public class HttpVerticle extends AbstractVerticle {
                             if (jobj.containsKey("htmlgen")) {
                                 genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
                                 genHandler.init();
-                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler);
+                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler, scanPeriod);
                                 vertx.deployVerticle(rssVerticle);
                                 if (schema == null) {
                                     router.route(wpath+"/*").handler(ctx -> {
-                                        rssVerticle.setSchema(getSchemaUri(ctx.request()));
+                                        if (rssVerticle.getSchema() == null) {
+                                            rssVerticle.setSchema(getSchemaUri(ctx.request()));
+                                        }
                                         ctx.next();
                                     });
                                 } else {
