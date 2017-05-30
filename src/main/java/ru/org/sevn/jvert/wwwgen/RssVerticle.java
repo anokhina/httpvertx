@@ -139,14 +139,14 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
     public void run() {
         long newLastUpdated = new Date().getTime();
         //System.err.println("Find updates for rss " + dir.getAbsolutePath());
-        if (drillDirs(dir)) {
+        if (drillDirs(dir, dir)) {
             if (writeMe() > 0) {
                 myLastUpdated = newLastUpdated;
             }
         }
     }
     
-    private boolean drillDirs(File dir) {
+    private boolean drillDirs(File rootDir, File dir) {
         boolean ret = false;
         System.err.println("find>"+dir.getAbsolutePath());
         if (schema != null && dir.exists()) {
@@ -156,15 +156,40 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
                 ret = true;
             }
             for (File f : dir.listFiles(dirFilter)) {
-                if (drillDirs(f)) {
+                if (drillDirs(rootDir, f)) {
                     ret = true;
                 }
             }
-            if (!new File(dir, "index.html").exists()) {
+            File idx = new File(dir, "index.html");
+            boolean siblingUpdated = false;
+            if (rootDir != dir) {
+                File pdir = dir.getParentFile();
+                if (pdir != null) {
+                    siblingUpdated = siblingUpdated(idx, pdir, siblingUpdated);
+                    if (!pdir.equals(rootDir)) {
+                        pdir = rootDir;
+                        siblingUpdated = siblingUpdated(idx, pdir, siblingUpdated);
+                    }
+                }
+            } else {
+                siblingUpdated = siblingUpdated(idx, dir, siblingUpdated);
+            }
+            if (siblingUpdated || !idx.exists() || dir.lastModified() > idx.lastModified()) {
                 Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), dir);
             }
         }
         return ret;
+    }
+    private boolean siblingUpdated(File idx, File pdir, boolean siblingUpdated) {
+        if (!siblingUpdated) {
+            for (File f : pdir.listFiles(dirFilter)) {
+                if (f.lastModified() > idx.lastModified()) {
+                    siblingUpdated = true;
+                    break;
+                }
+            }
+        }
+        return siblingUpdated;
     }
     private void addDir(File d, File[] files) {
         changed = true;

@@ -194,6 +194,9 @@ public class Menu {
                 if (s != m) {
                     ret = s.getDirProperties().isModify();
                     if (ret) return ret;
+                    if (s.getFile().lastModified() > m.getFile().lastModified()) {
+                        return true;
+                    }
                 }
             }
             //ret = parent.getDirProperties().isModify();

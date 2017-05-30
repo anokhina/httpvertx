@@ -249,7 +249,8 @@ public class HttpVerticle extends AbstractVerticle {
         oauth2.setupCallback(router.get("/auth"));
 
         FileAuthProvider fileAuthProvider = new FileAuthProvider(userMatcher, new PassAuth(saltPrefix));
-        router.route("/www/login").handler(RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html"));
+        io.vertx.ext.web.handler.AuthHandler authHandlerLogin = RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html");
+        router.route("/www/login").handler(authHandlerLogin);
         router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
 
@@ -293,6 +294,7 @@ public class HttpVerticle extends AbstractVerticle {
                     final JsonObject jobj = (JsonObject)o;
                     if (jobj.containsKey("webpath") && jobj.containsKey("dirpath") && jobj.containsKey("groups")) {
                         try {
+                            String authsys = jobj.getString("authsys");
                             String webpath = jobj.getString("webpath");
                             String dirpath = jobj.getString("dirpath");
                             String dirpathThumb = jobj.getString("dirpathThumb");
@@ -326,8 +328,15 @@ public class HttpVerticle extends AbstractVerticle {
                                 router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
                             }
                             
+                            router.route(wpath+"/ref/*").handler(ctx ->{ //TODO
+                                ctx.response().putHeader("content-type", "text/html").end("Dynamic page for reference " + webpath);
+                            });
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
-                            router.route(wpath+"/*").handler(oauth2);
+                            if ("local".equals(authsys)) {
+                                router.route(wpath+"/*").handler(authHandlerLogin);
+                            } else {
+                                router.route(wpath+"/*").handler(oauth2);
+                            }
                             router.route(wpath).handler(ctx -> {
                                 redirect(ctx.request(), wpath + "/index.html");
                             });

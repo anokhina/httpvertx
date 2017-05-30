@@ -773,7 +773,11 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     }    
     private FilenameFilter imgFilenameFilter = makeImgFilenameFilter();
     public FilenameFilter makeImgFilenameFilter() {
-        return new StartWithFilenameFilter("img-", ".jpg");
+		FilenameFilter imgFilenameFilter = new ComplexFilenameFilter(
+                new StartWithFilenameFilter("img-", ".jpg"),
+                new StartWithFilenameFilter("p-", ".jpg")
+        );
+        return imgFilenameFilter;
     }
     protected FilenameFilter getImgFilenameFilter() {
         return imgFilenameFilter;
