@@ -144,6 +144,9 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
                 myLastUpdated = newLastUpdated;
             }
         }
+        if (genHandler.isForce()) {
+            genHandler.setForce(false);
+        }
     }
     
     private boolean drillDirs(File rootDir, File dir) {
@@ -174,7 +177,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
             } else {
                 siblingUpdated = siblingUpdated(idx, dir, siblingUpdated);
             }
-            if (siblingUpdated || !idx.exists() || dir.lastModified() > idx.lastModified()) {
+            if (genHandler.isForce() || siblingUpdated || !idx.exists() || dir.lastModified() > idx.lastModified()) {
                 Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), dir);
             }
         }
@@ -202,7 +205,8 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
         Menu m = this.genHandler.makeRelativeMenu(this.genHandler.getDirRoot(), d);
         
         String lnk = schema + this.genHandler.getWebpath() + FileUtil.getRelativePath(this.genHandler.getDirRoot(), d);
-        String title = WWWGenHandler.getText(FileUtil.getExistsFile(d, WWWGenHandler.FILE_NAME_TITLE, WWWGenHandler.TXT_EXT), d.getName());
+        String title = WWWGenHandler.getTitle(d);
+        if (title == null) title = d.getName();
         String dsc = WWWGenHandler.getText(FileUtil.getExistsFile(d, WWWGenHandler.FILE_NAME_DESCR, WWWGenHandler.TXT_EXT), "");
         
         RssItem ri = new RssItem();

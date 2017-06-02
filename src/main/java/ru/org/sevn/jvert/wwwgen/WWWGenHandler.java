@@ -29,6 +29,7 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -328,7 +329,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		}
 		
 		m.setIconPath(getExists(file, ".icon", ICONS_EXT));
-		m.setTitle(getText(FileUtil.getExistsFile(file, FILE_NAME_TITLE, TXT_EXT)));
+		m.setTitle(getTitle(file));
 		m.setDescription(getText(FileUtil.getExistsFile(file, FILE_NAME_DESCR, TXT_EXT)));
 		m.setSinglePage(getExists(file, ".single", TXT_EXT) != null);
 		
@@ -353,6 +354,15 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     public static final String FILE_NAME_TITLE = ".title";
     public static final String FILE_NAME_DESCR = ".description";
     
+    public static final SimpleDateFormat titleDateFormat = new SimpleDateFormat("yyyyMM");
+    public static final SimpleDateFormat titleDateFormatTo = new SimpleDateFormat("MM/yyyy");
+    public static String getTitle(File file) {
+        String defVal = null;
+        try {
+            defVal = titleDateFormatTo.format(titleDateFormat.parse(file.getName()));
+        } catch (Exception e) {}
+        return getText(FileUtil.getExistsFile(file, FILE_NAME_TITLE, TXT_EXT), defVal);
+    }
 	public static String getText (File f, String name, String ... extensions) {
 		File fl = FileUtil.getExistsFile(f, name, extensions);
 		if (fl != null) {
@@ -775,6 +785,9 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     public FilenameFilter makeImgFilenameFilter() {
 		FilenameFilter imgFilenameFilter = new ComplexFilenameFilter(
                 new StartWithFilenameFilter("img-", ".jpg"),
+                new StartWithFilenameFilter("img-", ".png"),
+                new StartWithFilenameFilter("img_", ".png"),
+                new StartWithFilenameFilter("img_", ".jpg"),
                 new StartWithFilenameFilter("p-", ".jpg")
         );
         return imgFilenameFilter;
