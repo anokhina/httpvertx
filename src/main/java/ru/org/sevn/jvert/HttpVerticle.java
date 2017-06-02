@@ -47,9 +47,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.InviteHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
+import ru.org.sevn.jvert.wwwgen.ShareHandler;
+import ru.org.sevn.jvert.wwwgen.ShareUrlHandler;
 import ru.org.sevn.jvert.wwwgen.ThumbHandler;
 import ru.org.sevn.jvert.wwwgen.ZipHandler;
 
@@ -288,6 +291,7 @@ public class HttpVerticle extends AbstractVerticle {
         //TODO refresh settings
         
         final ArrayList<String> websList = new ArrayList<>();
+        final SimpleSqliteObjectStore ostore = new SimpleSqliteObjectStore("hashDb.db", ShareHandler.Hash.class, new ShareHandler.HashMapper());
         if (webs != null) {
             for (Object o : webs) {
                 if (o instanceof JsonObject) {
@@ -328,9 +332,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
                             }
                             
-                            router.route(wpath+"/ref/*").handler(ctx ->{ //TODO
-                                ctx.response().putHeader("content-type", "text/html").end("Dynamic page for reference " + webpath);
-                            });
+                            router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, ostore));
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             if ("local".equals(authsys)) {
                                 router.route(wpath+"/*").handler(authHandlerLogin);
@@ -350,6 +352,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
                             });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, ostore)));
                             router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
                                     new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
                             );

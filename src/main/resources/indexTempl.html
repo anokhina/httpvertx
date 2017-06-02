@@ -59,9 +59,11 @@ function showImg(pic, picthumb, comment, k) {
 
   var cmt = document.getElementById("imageComment");
   var imgref = document.getElementById("imgref");
+  var imgrefshare = document.getElementById("imgrefshare");
   x.src = picthumb;
   y.imgkey = k;
   imgref.href=pic;
+  imgrefshare.href=pic + "?share1=1";
   cmt.innerHTML="&nbsp;"+comment;
 }
 function showVid(pic, picthumb, comment, k) {
@@ -70,9 +72,11 @@ function showVid(pic, picthumb, comment, k) {
 
   var cmt = document.getElementById("imageComment");
   var imgref = document.getElementById("imgref");
+  var imgrefshare = document.getElementById("imgrefshare");
   x.src = picthumb;
   y.imgkey = k;
   imgref.href=pic;
+  imgrefshare.href=pic + "?share1=1";
   cmt.innerHTML="&nbsp;"+comment;
 }
 function nextImg(incr) {
@@ -139,6 +143,7 @@ $!{subnavcolumns}
   <div id="imageComment">comment</div>
   <a              href="$fakeimg" onclick="nextImgClck(-1)">&lt;&lt;&lt;</a>
   <a id="imgref"  href="$fakeimg" >&dArr;</a>
+  <a id="imgrefshare"  href="$fakeimg?share1=1" >&dArr;</a>
   <a              href="$fakeimg" onclick="nextImgClck(1)">&gt;&gt;&gt;</a>
 </td></tr>
 <tr><td>
