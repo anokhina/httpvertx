@@ -47,7 +47,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
     public static final String FILE_NAME_HTML = "index.html";
     
     private String schema;
-    private final File dir;
+//    private final File dir;
     private final File dirOut;
     private final File fileOut;
     private final File fileOutHtml;
@@ -63,7 +63,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
 	private FilenameFilter contentFilter;
     private DirNotHiddenFilenameFilter dirFilter = new DirNotHiddenFilenameFilter();
 	private FilenameFilter lastUpdatedFilter = (dir, name) -> {
-        File idxFile = new File(dir, "index.html");
+        File idxFile = new File(getGenHandler().getDirOut(dir), "index.html");
         File chFile = new File(dir, name);
         if (idxFile.exists()) {
             return (chFile.lastModified() > myLastUpdated && chFile.lastModified() > idxFile.lastModified());
@@ -77,16 +77,19 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
     private boolean changed = false;
     
     private final WWWGenHandler genHandler;
+
+    public WWWGenHandler getGenHandler() {
+        return genHandler;
+    }
     
-    public RssVerticle(File f, File o, WWWGenHandler filterSupplier) {
-        this(f, o, filterSupplier, 0, 5, TimeUnit.SECONDS);
+    public RssVerticle(File o, WWWGenHandler filterSupplier) {
+        this(o, filterSupplier, 0, 5, TimeUnit.SECONDS);
     }
-    public RssVerticle(File f, File o, WWWGenHandler filterSupplier, long period) {
-        this(f, o, filterSupplier, 0, period, TimeUnit.SECONDS);
+    public RssVerticle(File o, WWWGenHandler filterSupplier, long period) {
+        this(o, filterSupplier, 0, period, TimeUnit.SECONDS);
     }
-    public RssVerticle(File f, File o, WWWGenHandler filterSupplier, long initialDelay, long period, TimeUnit unit) {
+    public RssVerticle(File o, WWWGenHandler filterSupplier, long initialDelay, long period, TimeUnit unit) {
         this.genHandler = filterSupplier;
-        dir = f;
         dirOut = o;
         this.initialDelay = initialDelay;
         this.period = period;
@@ -139,7 +142,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
     public void run() {
         long newLastUpdated = new Date().getTime();
         //System.err.println("Find updates for rss " + dir.getAbsolutePath());
-        if (drillDirs(dir, dir)) {
+        if (drillDirs(genHandler.getDirRoot(), genHandler.getDirRoot())) {
             if (writeMe() > 0) {
                 myLastUpdated = newLastUpdated;
             }
@@ -163,7 +166,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
                     ret = true;
                 }
             }
-            File idx = new File(dir, "index.html");
+            File idx = new File(genHandler.getDirOut(dir), "index.html");
             boolean siblingUpdated = false;
             if (rootDir != dir) {
                 File pdir = dir.getParentFile();
@@ -258,7 +261,7 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
         return this.fileOutHtml;
     }
     
-    //TODO
+    //TODO sendFile
     private static void sendFile(File f, RoutingContext ctx) {
         if (f.exists()) {
             String contentType = null;

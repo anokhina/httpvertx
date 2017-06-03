@@ -17,6 +17,7 @@ package ru.org.sevn.jvert;
 
 import ru.org.sevn.jvert.wwwgen.RssVerticle;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
@@ -301,6 +302,7 @@ public class HttpVerticle extends AbstractVerticle {
                             String authsys = jobj.getString("authsys");
                             String webpath = jobj.getString("webpath");
                             String dirpath = jobj.getString("dirpath");
+                            String dirpathGen = jobj.getString("dirpathGen", dirpath);
                             String dirpathThumb = jobj.getString("dirpathThumb");
                             String dirpathThumbBig = jobj.getString("dirpathThumbBig");
                             String dirpathRss = jobj.getString("dirpathRss");
@@ -313,9 +315,9 @@ public class HttpVerticle extends AbstractVerticle {
 
                             ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = null;
                             if (jobj.containsKey("htmlgen")) {
-                                genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), webpath);
+                                genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), new File(dirpathGen), webpath);
                                 genHandler.init();
-                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpath), new File(dirpathRss), genHandler, scanPeriod);
+                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpathRss), genHandler, scanPeriod);
                                 vertx.deployVerticle(rssVerticle);
                                 if (schema == null) {
                                     router.route(wpath+"/*").handler(ctx -> {
@@ -332,7 +334,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
                             }
                             
-                            router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, ostore));
+                            router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostore));
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             if ("local".equals(authsys)) {
                                 router.route(wpath+"/*").handler(authHandlerLogin);
@@ -386,6 +388,23 @@ public class HttpVerticle extends AbstractVerticle {
                                         new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpath).getAbsolutePath())
                                     )
                             );
+                                    
+                            Handler<RoutingContext> generatedHandler = new UserAuthorizedHandler(authorizer, 
+                                        new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpathGen).getAbsolutePath())
+                                    );
+                            router.get(wpath+"/*").failureHandler(ctx -> {
+                                int statusCode = ctx.statusCode();
+                                if (statusCode == 404 && ctx.failure() == null && ctx.get("__generatedHandler__") == null) {
+                                    ctx.put("__generatedHandler__", true);
+                                    generatedHandler.handle(ctx);
+                                    return;
+                                }
+                                if (ctx.get("__generatedHandler__") != null && ctx.response().ended()) {
+                                    return;
+                                }
+                                ctx.next();
+                            });
+                            
                             websList.add(webpath);
                         } catch (Exception ex) {
                             Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);

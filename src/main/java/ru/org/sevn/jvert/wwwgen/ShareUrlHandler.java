@@ -36,8 +36,8 @@ public class ShareUrlHandler implements io.vertx.core.Handler<RoutingContext> {
     private final JsonObject config;
     private final SimpleSqliteObjectStore ostore;
     
-    public ShareUrlHandler(String wpathDelim, String dirpath, SimpleSqliteObjectStore os) {
-        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath), os);
+    public ShareUrlHandler(String wpathDelim, String dirpath, String dirpathGen, SimpleSqliteObjectStore os) {
+        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath).put("dirpathGen", dirpathGen), os);
     }
     
     public ShareUrlHandler(JsonObject config, SimpleSqliteObjectStore os) {
@@ -51,6 +51,10 @@ public class ShareUrlHandler implements io.vertx.core.Handler<RoutingContext> {
     
     protected String getDirpath() {
         return config.getString("dirpath");
+    }
+    
+    protected String getDirpathGen() {
+        return config.getString("dirpathGen");
     }
     
     private static String getDecoded(String s) {
@@ -92,14 +96,26 @@ public class ShareUrlHandler implements io.vertx.core.Handler<RoutingContext> {
                     // send file
                     //ctx.response().putHeader("content-type", "text/html").end("Dynamic page for reference to file " + path);
                     File f = new File(getDirpath(), getDecoded(exO.getPath()));
+                    if (!f.exists()) {
+                        f = new File(getDirpathGen(), getDecoded(exO.getPath())); 
+                    }
                     sendFile(ctx, f);
                 } else if (exO.getShareMode() == 2) {
                     File f = new File(getDirpath(), getDecoded(exO.getPath()));
                     if (path.length() == 0) {
+                        if (!f.exists()) {
+                            f = new File(getDirpathGen(), getDecoded(exO.getPath())); 
+                        }
                         sendFile(ctx, f);
                     } else {
                         File dir = f.getParentFile();
-                        sendFile(ctx, new File(dir, path));//TODO ../..
+                        File sndFile = new File(dir, path);
+                        if (!sndFile.exists()) {
+                            f = new File(getDirpathGen(), getDecoded(exO.getPath())); 
+                            dir = f.getParentFile();
+                            sndFile = new File(dir, path);
+                        }
+                        sendFile(ctx, sndFile);//TODO ../..
                     }
                     
                     //new NReachableFSStaticHandlerImpl().setAlwaysAsyncFS(true).setCachingEnabled(false).setDefaultContentEncoding("UTF-8").setAllowRootFileSystemAccess(true).setWebRoot(new File(dirpath).getAbsolutePath())
