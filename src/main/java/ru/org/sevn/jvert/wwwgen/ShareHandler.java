@@ -219,13 +219,13 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
             if (file2share.exists()) {
                 if ("1".equals(shareMode)) {
                     if (!file2share.isDirectory()) {
-                        if (showHashLink(ctx, pathEncoded, 1)) {
+                        if (showHashLink(ctx, pathEncoded, file2share.getName(), 1)) {
                             return;
                         }
                         ctx.fail(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
                     }
                 } else if ("2".equals(shareMode)) {
-                    if (showHashLink(ctx, pathEncoded, 2)) {
+                    if (showHashLink(ctx, pathEncoded, file2share.getName(), 2)) {
                         return;
                     }
                     ctx.fail(HttpResponseStatus.INTERNAL_SERVER_ERROR.code());
@@ -237,7 +237,7 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
         }
     }
     
-    private boolean showHashLink(RoutingContext ctx, String path, int shareMode) {
+    private boolean showHashLink(RoutingContext ctx, String path, String fileName, int shareMode) {
         HttpServerRequest r = ctx.request();
         User u = ctx.user();
         if (u instanceof ExtraUser) {
@@ -261,11 +261,11 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
                 if (exO == null) {
                     o.setHashid(pa.getHashString(o.getUserid(), path));
                     if (ostore.addObject(o) > 0) {
-                        showLink(ctx, getUrl(r, o));
+                        showLink(ctx, getUrl(r, o, fileName));
                         return true;
                     }
                 } else {
-                    showLink(ctx, getUrl(r, exO));
+                    showLink(ctx, getUrl(r, exO, fileName));
                     return true;
                 }
             } catch (NoSuchAlgorithmException ex) {
@@ -277,8 +277,8 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
     }
     
     public static String PATH_REF = "ref/";
-    private String getUrl(HttpServerRequest r, Hash o) {
-        return getSchemaUri(r) + getWpathDelim() + PATH_REF + getEncoded(o.getHashid());
+    private String getUrl(HttpServerRequest r, Hash o, String fileName) {
+        return getSchemaUri(r) + getWpathDelim() + PATH_REF + getEncoded(o.getHashid()) + "/" + getEncoded(fileName);
     }
     
     private static String getEncoded(String s) {
@@ -299,5 +299,19 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
             ctx.response().putHeader("content-type", "text/html").end("Share link: <a href='" + url+"'>"+url+"</a>");
         }
     }
+    
+//    public static String pathOffset(String path, String mountPoint/*context.mountPoint()*/, String routePath/*context.currentRoute().getPath()*/) {
+//        int prefixLen = 0;
+//        if (mountPoint != null) {
+//            prefixLen = mountPoint.length();
+//        }
+//        if (routePath != null) {
+//            prefixLen += routePath.length();
+//            if (routePath.charAt(routePath.length() - 1) == '/') {
+//                prefixLen--;
+//            }
+//        }
+//        return prefixLen != 0 ? path.substring(prefixLen) : path;
+//    }
 
 }
