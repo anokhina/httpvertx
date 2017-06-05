@@ -365,11 +365,18 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     public static final String FILE_NAME_DESCR = ".description";
     
     public static final SimpleDateFormat titleDateFormat = new SimpleDateFormat("yyyyMM");
+    public static final SimpleDateFormat titleDateFormatD = new SimpleDateFormat("yyyyMMdd");
     public static final SimpleDateFormat titleDateFormatTo = new SimpleDateFormat("MM/yyyy");
+    public static final SimpleDateFormat titleDateFormatToD = new SimpleDateFormat("dd/MM/yyyy");
     public static String getTitle(File file) {
         String defVal = null;
+        //TODO match pattern
         try {
-            defVal = titleDateFormatTo.format(titleDateFormat.parse(file.getName()));
+            if (file.getName().length() == 6) {
+                defVal = titleDateFormatTo.format(titleDateFormat.parse(file.getName()));
+            } else if (file.getName().length() == 8) {
+                defVal = titleDateFormatToD.format(titleDateFormatD.parse(file.getName()));
+            }
         } catch (Exception e) {}
         return getText(FileUtil.getExistsFile(file, FILE_NAME_TITLE, TXT_EXT), defVal);
     }
@@ -467,6 +474,14 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		return contentType;
 	}
     
+	private String makeQRButton(final Menu m) {
+		StringWriter writer = new StringWriter();
+		Template template = ve.getTemplate("qrcodebutton.html");
+        VelocityContext context = new VelocityContext();
+        context.put("navLogo", FileUtil.getRelativePath(m.getFile(), getLogoFile()));
+        template.merge(context, writer);
+        return writer.toString();
+    }
 	private String makeBreadcrumbs(final Menu m, final String prevpath) {
 		if (m == null) return "";
 		Menu parent = m.getParent();
@@ -563,19 +578,13 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		context.put("fakeimg", FileUtil.getRelativePath(content.file, getLogoFile())); 
 		
 		context.put("pageContent", content.content.toString());
+		context.put("qrbutton", makeQRButton(content.menu));
 		context.put("breadcrumbs", makeBreadcrumbs(content.menu, null));
 		context.put("title", content.menu.getFullTitle());
 		
 		context.put("cssName", FileUtil.getRelativePath(content.file, getCssFile()));
 		
-		Menu mainMenu = Menu.getRoot(content.menu);
-		if (mainMenu.getContentFile() != null) {
-			context.put("navLogoHref", FileUtil.getRelativePath(content.file, mainMenu.getContentFile() ));
-		} else
-		if (mainMenu.getMenus().size() > 0) {
-			Menu mainMenuFirst = mainMenu.getMenus().get(0);
-			context.put("navLogoHref", FileUtil.getRelativePath(content.file, mainMenuFirst.getContentFile() ));
-		}
+		context.put("navLogoHref", FileUtil.getRelativePath(content.file, Menu.getRoot(content.menu).getFile() ));
 		if (getLogoFile().exists()) {
 			context.put("navLogo", FileUtil.getRelativePath(content.file, getLogoFile()));
 		}

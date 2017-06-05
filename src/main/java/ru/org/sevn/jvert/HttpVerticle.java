@@ -52,6 +52,7 @@ import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.InviteHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
+import ru.org.sevn.jvert.wwwgen.QRGenHandler;
 import ru.org.sevn.jvert.wwwgen.ShareHandler;
 import ru.org.sevn.jvert.wwwgen.ShareUrlHandler;
 import ru.org.sevn.jvert.wwwgen.ThumbHandler;
@@ -257,6 +258,7 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/www/login").handler(authHandlerLogin);
         router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
+        router.route("/qrcode/*").handler(new QRGenHandler());
 
         {
             InviteAuthProvider inviteAuthProvider = new InviteAuthProvider(fileAuthProvider);
