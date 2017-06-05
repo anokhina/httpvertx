@@ -48,7 +48,8 @@ public class QRGenHandler implements io.vertx.core.Handler<RoutingContext> {
                 return;
             }
         } else {
-            ctx.fail(404);
+            String s = "<form url='"+ctx.request().absoluteURI()+"'>url:<input type='text' name='url'>"+"</form>";
+            ctx.response().putHeader("content-type", "text/html").end(s);
         }
     }    
 }
