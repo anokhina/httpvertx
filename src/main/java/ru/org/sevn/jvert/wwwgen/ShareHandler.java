@@ -185,8 +185,8 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
     private final JsonObject config;
     private final SimpleSqliteObjectStore ostore;
     
-    public ShareHandler(String wpathDelim, String dirpath, SimpleSqliteObjectStore os) {
-        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath), os);
+    public ShareHandler(String wpathDelim, String dirpath, String dirpathOut, SimpleSqliteObjectStore os) {
+        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath).put("dirpathOut", dirpathOut), os);
     }
     
     public ShareHandler(JsonObject config, SimpleSqliteObjectStore os) {
@@ -200,6 +200,10 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
     
     protected String getDirpath() {
         return config.getString("dirpath");
+    }
+    
+    protected String getDirpathOut() {
+        return config.getString("dirpathOut");
     }
     
     @Override
@@ -216,6 +220,9 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
                 Logger.getLogger(ShareHandler.class.getName()).log(Level.SEVERE, null, ex);
             }
             File file2share = new File(getDirpath(), path);
+            if (!file2share.exists()) {
+                file2share = new File(getDirpathOut(), path);
+            }
             if (file2share.exists()) {
                 if ("1".equals(shareMode)) {
                     if (!file2share.isDirectory()) {
@@ -296,7 +303,8 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
         if ("TODO".equals(url)) {
             ctx.fail(HttpResponseStatus.NOT_FOUND.code());
         } else {
-            ctx.response().putHeader("content-type", "text/html").end("Share link: <a href='" + url+"'>"+url+"</a>");
+            ctx.response().putHeader("content-type", "text/html").end("Share link: <a href='" + url+"'>"+url+"</a>"+
+                    "<img src='/qrcode?url="+getEncoded(url)+"'>");
         }
     }
     

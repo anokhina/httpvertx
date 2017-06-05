@@ -356,7 +356,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
                             });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
-                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, ostore)));
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, dirpathGen, ostore)));
                             router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
                                     new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
                             );
