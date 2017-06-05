@@ -33,6 +33,8 @@ import ru.org.sevn.jvert.VertxOutputStream;
 
 public class ShareUrlHandler implements io.vertx.core.Handler<RoutingContext> {
 
+    //TODO log op https://www.mkyong.com/java/how-to-get-client-ip-address-in-java/
+    
     private final JsonObject config;
     private final SimpleSqliteObjectStore ostore;
     

@@ -16,7 +16,6 @@
 package ru.org.sevn.jvert.wwwgen;
 
 import io.vertx.core.http.HttpServerRequest;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import java.io.IOException;
 import java.util.logging.Level;
@@ -27,6 +26,7 @@ import ru.org.sevn.jvert.VertxOutputStream;
 import ru.org.sevn.jvert.auth.InviteHandler;
 
 public class QRGenHandler implements io.vertx.core.Handler<RoutingContext> {
+    //https://github.com/kenglxn/QRGen
     
     @Override
     public void handle(RoutingContext ctx) {
