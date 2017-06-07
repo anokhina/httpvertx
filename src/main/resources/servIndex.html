@@ -18,9 +18,10 @@
 <img src="/www/img/logo_txt.png" class="logoimg"/>
 <div class="form-signin">
 <!-- #if ($userId) -->
+<p><a href="https://localhost:1945/logout">Выйти / Logout</a>
 <h2 class="form-signin-heading">Авторизован как <br> Logged in as</h2>
 <pre>$!{userIdDsc}</pre>
-<p><a href="https://localhost:1945/logout">Выйти / Logout</a>
+<p>$!{configuredPaths}
 <!-- #else -->
 <h2 class="form-signin-heading">Авторизация / Login</h2>
 <p><a href="/www/login">Войти / Local</a>

@@ -47,6 +47,7 @@ import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.velocity.Template;
@@ -306,13 +307,14 @@ public class HttpVerticle extends AbstractVerticle {
         }
         //TODO refresh settings
         
-        final ArrayList<String> websList = new ArrayList<>();
+        final LinkedHashMap<String, WebDescriptor> websList = new LinkedHashMap<>();
         final SimpleSqliteObjectStore ostore = new SimpleSqliteObjectStore("hashDb.db", ShareHandler.Hash.class, new ShareHandler.HashMapper());
         if (webs != null) {
             for (Object o : webs) {
                 if (o instanceof JsonObject) {
                     final JsonObject jobj = (JsonObject)o;
                     if (jobj.containsKey("webpath") && jobj.containsKey("dirpath") && jobj.containsKey("groups")) {
+                        //TODO create separate object
                         try {
                             String authsys = jobj.getString("authsys");
                             String webpath = jobj.getString("webpath");
@@ -420,7 +422,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.next();
                             });
                             
-                            websList.add(webpath);
+                            websList.put(webpath, new WebDescriptor(jobj, authorizer));
                         } catch (Exception ex) {
                             Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
                         }
@@ -432,6 +434,14 @@ public class HttpVerticle extends AbstractVerticle {
         
         final TemplateEngine templateEngine = new TemplateEngine(null);
         router.get("/").handler(ctx -> {
+            StringBuilder configuredPaths = new StringBuilder();            
+            for (String wp : websList.keySet()) {
+                WebDescriptor dsc = websList.get(wp);
+                if (dsc.getUserAuthorizer().isAllowed(ctx.user(), ctx)) {
+                    configuredPaths.append("<a href=\"/").append(wp).append("/index.html\">").append(wp).append("</a>").append("<br>");
+                }
+            }
+            
             User user = ctx.user();
             Template templ = null;
             try {
@@ -449,6 +459,7 @@ public class HttpVerticle extends AbstractVerticle {
                     veloCtx.put("userId", user.principal().encodePrettily());
                     veloCtx.put("userIdDsc", user.principal().encodePrettily());
                 }
+                veloCtx.put("configuredPaths", configuredPaths.toString());
                 OutputStreamWriter writer = new OutputStreamWriter(vos, "UTF-8");
                 templ.merge(veloCtx, writer);
                 writer.flush();
@@ -475,6 +486,7 @@ public class HttpVerticle extends AbstractVerticle {
                 String wpStr = "Logout";
                 sb.append("<a href=\"").append(wp).append("\">").append(wpStr).append("</a>").append("<br>");
             }
+            sb.append(configuredPaths.toString());
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx, false));
         });
         
@@ -485,9 +497,8 @@ public class HttpVerticle extends AbstractVerticle {
         router.get("/admin").handler(ctx -> {
             StringBuilder sb = new StringBuilder();
             sb.append("Configured paths:").append("<br>");
-            for (String wp : websList) {
+            for (String wp : websList.keySet()) {
                 sb.append("<a href=\"/").append(wp).append("/index.html\">").append(wp).append("</a>").append("<br>");
-                
             }
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+simpleAnswerString(ctx));
         });
@@ -510,6 +521,33 @@ public class HttpVerticle extends AbstractVerticle {
         router.post("/*").failureHandler(failureHandler);
         
         startServer(router);
+    }
+    
+    //TODO
+    static class WebDescriptor {
+        private JsonObject web;
+        private UserAuthorizer userAuthorizer;
+        public WebDescriptor(JsonObject web, UserAuthorizer userAuthorizer) {
+            this.web = web;
+            this.userAuthorizer = userAuthorizer;
+        }
+
+        public JsonObject getWeb() {
+            return web;
+        }
+
+        public void setWeb(JsonObject web) {
+            this.web = web;
+        }
+
+        public UserAuthorizer getUserAuthorizer() {
+            return userAuthorizer;
+        }
+
+        public void setUserAuthorizer(UserAuthorizer userAuthorizer) {
+            this.userAuthorizer = userAuthorizer;
+        }
+        
     }
     
     protected void startServer(Router router) {
