@@ -43,11 +43,14 @@ import io.vertx.ext.web.handler.UserSessionHandler;
 import io.vertx.ext.web.sstore.LocalSessionStore;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.InviteHandler;
@@ -55,6 +58,7 @@ import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
 import ru.org.sevn.jvert.wwwgen.QRGenHandler;
 import ru.org.sevn.jvert.wwwgen.ShareHandler;
 import ru.org.sevn.jvert.wwwgen.ShareUrlHandler;
+import ru.org.sevn.templ.TemplateEngine;
 import ru.org.sevn.jvert.wwwgen.ThumbHandler;
 import ru.org.sevn.jvert.wwwgen.ZipHandler;
 
@@ -258,6 +262,15 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/www/login").handler(authHandlerLogin);
         router.route("/www/login").handler(new WebpathHandler());
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
+        router.post("/www/loginauth").failureHandler(ctx -> {
+            int statusCode = ctx.statusCode();
+            if (statusCode == 400 || statusCode == 403) {
+                //TODO wrong user name password message
+                ctx.reroute("/www/login");
+            } else {
+                ctx.next();
+            }
+        });
         router.route("/qrcode/*").handler(new QRGenHandler());
 
         {
@@ -338,10 +351,10 @@ public class HttpVerticle extends AbstractVerticle {
                             
                             router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostore));
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
-                            if ("local".equals(authsys)) {
-                                router.route(wpath+"/*").handler(authHandlerLogin);
-                            } else {
+                            if ("google".equals(authsys)) {
                                 router.route(wpath+"/*").handler(oauth2);
+                            } else {
+                                router.route(wpath+"/*").handler(authHandlerLogin);
                             }
                             router.route(wpath).handler(ctx -> {
                                 redirect(ctx.request(), wpath + "/index.html");
@@ -417,7 +430,33 @@ public class HttpVerticle extends AbstractVerticle {
         }
         //TODO add dynamic pages
         
+        final TemplateEngine templateEngine = new TemplateEngine(null);
         router.get("/").handler(ctx -> {
+            User user = ctx.user();
+            Template templ = null;
+            try {
+                templ = templateEngine.getVelocityEngine().getTemplate("servIndex.html");
+
+                VelocityContext veloCtx = new VelocityContext();
+                ctx.response().putHeader("content-type", "text/html").setChunked(true);
+                VertxOutputStream vos = new VertxOutputStream(ctx.response());
+
+                if (user instanceof ExtraUser) {
+                    ExtraUser euser = (ExtraUser)user;
+                    veloCtx.put("userId", euser.getId());
+                    veloCtx.put("userIdDsc", euser.fullInfo(false).encodePrettily());
+                } else if (user != null) {
+                    veloCtx.put("userId", user.principal().encodePrettily());
+                    veloCtx.put("userIdDsc", user.principal().encodePrettily());
+                }
+                OutputStreamWriter writer = new OutputStreamWriter(vos, "UTF-8");
+                templ.merge(veloCtx, writer);
+                writer.flush();
+                vos.close();
+                return;
+            } catch (Exception ex) {
+                Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, ex);
+            }
             StringBuilder sb = new StringBuilder();
             sb.append("Server is running").append("<br>");
             String shemaPath = getSchemaUri(ctx.request());
@@ -439,6 +478,10 @@ public class HttpVerticle extends AbstractVerticle {
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+loggedUserString(ctx, false));
         });
         
+        router.get("/user").handler(ctx -> {
+            ctx.response().putHeader("content-type", "application/json").end(loggedUserString(ctx, false));
+        });
+        
         router.get("/admin").handler(ctx -> {
             StringBuilder sb = new StringBuilder();
             sb.append("Configured paths:").append("<br>");
@@ -452,14 +495,19 @@ public class HttpVerticle extends AbstractVerticle {
         //webroot
         router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false).setDefaultContentEncoding("UTF-8"));
         
-        router.get("/*").failureHandler(ctx -> {
+        router.route("/*").handler(ctx -> {
+            ctx.fail(404);
+        });
+        io.vertx.core.Handler<RoutingContext> failureHandler = ctx -> {
             //TODO error template
             int statusCode = ctx.statusCode();
             HttpServerResponse response = ctx.response();
             response.putHeader("content-type", "text/plain");
             response.setChunked(false);
-            response.setStatusCode(statusCode).end("Not accessible");
-        });
+            response.setStatusCode(statusCode).end("Error:" + statusCode);
+        };
+        router.get("/*").failureHandler(failureHandler);
+        router.post("/*").failureHandler(failureHandler);
         
         startServer(router);
     }
@@ -512,7 +560,7 @@ public class HttpVerticle extends AbstractVerticle {
         if (user instanceof ExtraUser) {
             return ((ExtraUser)user).fullInfo(full).encodePrettily();
         } else if (user != null) {
-            return "some authenticated user";
+            return user.principal().encodePrettily(); //"some authenticated user";
         }
         return "";
     }
