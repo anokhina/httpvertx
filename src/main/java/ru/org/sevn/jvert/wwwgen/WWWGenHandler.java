@@ -178,14 +178,6 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         return this;
     }
 
-    public File getFakeImage() {
-        File ret = new File(dirRoot, "fake.png");
-        if (!ret.exists()) {
-            return getLogoFile();
-        }
-        return ret;
-    }
-    
     public File getLogoFile() {
         return new File(dirRoot, logo);
     }
@@ -583,7 +575,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
         context.put("useThumb", false);
 
 		appendMenus(content, context);
-		context.put("fakeimg", FileUtil.getRelativePath(content.file, getFakeImage())); //TODO not logo file
+		context.put("fakeimg", FileUtil.getRelativePath(content.file, getLogoFile()));
 		
 		context.put("pageContent", content.content.toString());
 		context.put("qrbutton", makeQRButton(content.menu));

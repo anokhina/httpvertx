@@ -83,7 +83,7 @@ function showImg(pic, picthumb, comment, k) {
   var cmt = document.getElementById("imageComment");
   var imgref = document.getElementById("imgref");
   var imgrefshare = document.getElementById("imgrefshare");
-  x.src = "$fakeimg";
+  x.src = "/www/img/fake.png";
   x.src = picthumb;
   y.imgkey = k;
   imgref.href=pic;
@@ -140,6 +140,7 @@ function toggleClass(elId, elCls, extraCls) {
 	<div class="wrapper">
 		<div class="header">
 #if($navLogo)
+					<a href="$!{navLogoHref}" class="navLogo" id="navLogoFake"><img src="/www/img/fake.png"/></a>
 					<a href="$!{navLogoHref}" class="navLogo"><img src="$!{navLogo}"/></a>
 #else
 					<a href="$!{navLogoHref}" class="navLogoTxt">&#127968;</a>
@@ -172,7 +173,7 @@ $!{subnavcolumns}
 </td></tr>
 <tr><td>
 <div id="imgView" class="image">
-  <img   id="thumbImg" src="$fakeimg" class="thumbImg" />
+  <img   id="thumbImg" src="/www/img/fake.png" class="thumbImg" />
   <video id="videoview" controls><source src="$!{href}" type="video/mp4"> Браузер не поддерживает встроенное видео. Your browser does not support the video tag. </video>
 #*
   <a              href="$fakeimg" style="top: 0%; left: 0%; width: 30%; height: 100%;" onclick="nextImgClck(-1)">&nbsp;</a>
