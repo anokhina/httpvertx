@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
 	<head>
-		<meta http-equiv="X-UA-Compatible" content="IE=9">
+		<!--<meta http-equiv="X-UA-Compatible" content="IE=9">TODO-->
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<meta name="format-detection" content="telephone=no">
@@ -83,6 +83,7 @@ function showImg(pic, picthumb, comment, k) {
   var cmt = document.getElementById("imageComment");
   var imgref = document.getElementById("imgref");
   var imgrefshare = document.getElementById("imgrefshare");
+  x.src = "$fakeimg";
   x.src = picthumb;
   y.imgkey = k;
   imgref.href=pic;
