@@ -33,6 +33,7 @@ public class ClasspathVelocityEngine extends VelocityEngine {
 	public static VelocityEngine applyClasspathResourceLoader(VelocityEngine ve) {
 	    ve.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath");
 	    ve.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+	    ve.setProperty("input.encoding", "UTF-8");
 	    return ve;
 	}
 	public static VelocityEngine applyFileResourceLoader(VelocityEngine ve, String path) {

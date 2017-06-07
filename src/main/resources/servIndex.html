@@ -1,0 +1,31 @@
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=9">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
+
+    <link rel="stylesheet" href="/www/login.css">
+<!--[if IE]>
+    <link rel="stylesheet" href="/www/loginnie.css">
+<![endif]-->
+</head>
+<body>
+<img src="/www/img/logo_txt.png" class="logoimg"/>
+<div class="form-signin">
+<!-- #if ($userId) -->
+<h2 class="form-signin-heading">Авторизован как <br> Logged in as</h2>
+<pre>$!{userIdDsc}</pre>
+<p><a href="https://localhost:1945/logout">Выйти / Logout</a>
+<!-- #else -->
+<h2 class="form-signin-heading">Авторизация / Login</h2>
+<p><a href="/www/login">Войти / Local</a>
+<p><a href="/www/logingoogle">Авторизоваться с помощью Google</a>
+<!-- #end -->
+</div>
+</body>
+</html>
