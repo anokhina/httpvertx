@@ -56,6 +56,7 @@ import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.InviteHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
+import ru.org.sevn.jvert.wwwgen.LogHandler;
 import ru.org.sevn.jvert.wwwgen.QRGenHandler;
 import ru.org.sevn.jvert.wwwgen.ShareHandler;
 import ru.org.sevn.jvert.wwwgen.ShareUrlHandler;
@@ -248,11 +249,15 @@ public class HttpVerticle extends AbstractVerticle {
     public void start() throws Exception {
         configService();
         
+        GroupUserAuthorizer authorizerAdmin = new GroupUserAuthorizer(new JsonArray().add("admin"));
+        
         Router router = Router.router(vertx);
         setUpRouter(router);
         
         OAuth2Auth authProvider = (OAuth2Auth) newAuthProviderGoogle();
         router.route().handler(UserSessionHandler.create(authProvider));
+        
+        router.route("/*").handler(new LogHandler());
         
         OAuth2AuthHandler oauth2 = new GoogleUserOAuth2AuthHandlerImpl(authProvider, getAuthUrl(), getAppName(), userMatcher);
         oauth2.addAuthority("profile");
@@ -502,6 +507,18 @@ public class HttpVerticle extends AbstractVerticle {
             }
             ctx.response().putHeader("content-type", "text/html").end(sb.toString()+simpleAnswerString(ctx));
         });
+        // logs 
+        //TODO zip unzip
+        router.route("/admin/log/*").handler(
+                new UserAuthorizedHandler(authorizerAdmin, 
+                    new NReachableFSStaticHandlerImpl()
+                            .setAlwaysAsyncFS(true)
+                            .setCachingEnabled(false)
+                            .setDefaultContentEncoding("UTF-8")
+                            .setAllowRootFileSystemAccess(true)
+                            .setWebRoot(new File("log").getAbsolutePath()) //TODO log
+                )
+        );
         
         //webroot
         router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false).setDefaultContentEncoding("UTF-8"));
