@@ -19,6 +19,10 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
+import java.io.File;
+import java.io.UnsupportedEncodingException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> {
     
@@ -45,27 +49,45 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
         HttpServerRequest req = ctx.request();
         String edit = req.getParam("edit");
         if (edit != null) {
-            if (req.method() == HttpMethod.POST) {
-                req.setExpectMultipart(true);
-                req.uploadHandler(upload -> {
-                    upload.exceptionHandler(cause -> {
-                        req.response().setChunked(true).end("Upload failed");
-                    });
+            String path = req.path();
+            path = path.substring(getWpathDelim().length());
+            try {
+                path = java.net.URLDecoder.decode(path, "UTF-8");
+            } catch (UnsupportedEncodingException ex) {
+                Logger.getLogger(FileUploadHandler.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            File dir = new File(getDirpath(), path);
+            if (!dir.isDirectory()) {
+                dir = dir.getParentFile();
+            }
+            if (dir.exists()) {
+                                
+                final File dirr = dir; 
+                if (req.method() == HttpMethod.POST) {
+                    req.setExpectMultipart(true);
+                    req.uploadHandler(upload -> {
+                        upload.exceptionHandler(cause -> {
+                            req.response().setChunked(true).end("Upload failed");
+                        });
 
-                    upload.endHandler(v -> {
-                        req.response().setChunked(true).end("Successfully uploaded to " + upload.filename());
+                        upload.endHandler(v -> {
+                            req.response().setChunked(true).end("Successfully uploaded to " + upload.filename());
+                        });
+                        File outFile = new File(dirr, upload.filename());
+                        upload.streamToFileSystem(outFile.getAbsolutePath());
                     });
-                    //upload.streamToFileSystem(upload.filename());
-                });             
-            } else if (req.method() == HttpMethod.GET) {
-                ctx.response().putHeader("content-type", "text/html").end(FORM_STR);
+                } else if (req.method() == HttpMethod.GET) {
+                    String actionName = "";
+                    ctx.response().putHeader("content-type", "text/html").end(getFormContent(actionName));
+                }
             }
         } else {
             ctx.next();
         }
     }    
-    
-    public static final String FORM_STR = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" +
+
+    public String getFormContent(String actionName) {
+        return "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" +
 "        \"http://www.w3.org/TR/html4/loose.dtd\">\n" +
 "<html>\n" +
 "<head>\n" +
@@ -73,13 +95,15 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 "</head>\n" +
 "<body>\n" +
 "\n" +
-"<form action=\"/form\" ENCTYPE=\"multipart/form-data\" method=\"POST\" name=\"fileform\">\n" +
+"<form action=\""+actionName+"\" ENCTYPE=\"multipart/form-data\" method=\"POST\" name=\"fileform\">\n" +
 "    choose a file to upload:<input type=\"file\" name=\"uploadedfile\"/><br>\n" +
 "    <input type=\"submit\"/>\n" +
+"    <input type=\"hidden\" name=\"edit\" value=\"2\"/>\n" +
 "</form>\n" +
 "\n" +
 "</body>\n" +
 "</html>";
+    }
 }
 /*
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
@@ -90,9 +114,10 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 </head>
 <body>
 
-<form action="/form" ENCTYPE="multipart/form-data" method="POST" name="fileform">
+<form action="actionName" ENCTYPE="multipart/form-data" method="POST" name="fileform">
     choose a file to upload:<input type="file" name="uploadedfile"/><br>
     <input type="submit"/>
+    <input type="hidden" name="edit" value="2"/>
 </form>
 
 </body>

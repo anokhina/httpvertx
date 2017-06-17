@@ -18,6 +18,7 @@ package ru.org.sevn.jvert;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.auth.User;
 import io.vertx.ext.web.RoutingContext;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,6 +27,11 @@ public class GroupUserAuthorizer implements UserAuthorizer {
 
     public GroupUserAuthorizer(JsonArray groups) {
         for (Object o : groups) {
+            this.groups.add(o.toString());
+        }
+    }
+    public GroupUserAuthorizer(Collection<String> groups) {
+        for (String o : groups) {
             this.groups.add(o.toString());
         }
     }

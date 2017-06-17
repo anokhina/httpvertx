@@ -50,11 +50,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.InviteHandler;
+import ru.org.sevn.jvert.wwwgen.FileUploadHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
 import ru.org.sevn.jvert.wwwgen.LogHandler;
 import ru.org.sevn.jvert.wwwgen.QRGenHandler;
@@ -332,6 +334,8 @@ public class HttpVerticle extends AbstractVerticle {
                             JsonArray groups = jobj.getJsonArray("groups");
                             long scanPeriod = jobj.getLong("scanPeriod", this.scanPeriod);
                             GroupUserAuthorizer authorizer = new GroupUserAuthorizer(groups);
+                            GroupUserAuthorizer authorizerSu = new GroupUserAuthorizer(
+                                    groups.stream().map( (s) -> s.toString() + "_su").collect(Collectors.toList()));
                             String wpath = "/"+webpath;
                             String wpathDelim = "/"+webpath+"/";
 
@@ -376,6 +380,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
                             });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizerSu, new FileUploadHandler(wpathDelim, dirpath)));
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, dirpathGen, ostore)));
                             router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
                                     new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
