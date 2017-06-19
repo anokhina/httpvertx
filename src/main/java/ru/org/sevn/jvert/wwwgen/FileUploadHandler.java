@@ -18,9 +18,11 @@ package ru.org.sevn.jvert.wwwgen;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
 import java.io.File;
 import java.io.UnsupportedEncodingException;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -64,18 +66,34 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
                                 
                 final File dirr = dir; 
                 if (req.method() == HttpMethod.POST) {
-                    req.setExpectMultipart(true);
-                    req.uploadHandler(upload -> {
-                        upload.exceptionHandler(cause -> {
-                            req.response().setChunked(true).end("Upload failed");
-                        });
-
-                        upload.endHandler(v -> {
-                            req.response().setChunked(true).end("Successfully uploaded to " + upload.filename());
-                        });
-                        File outFile = new File(dirr, upload.filename());
-                        upload.streamToFileSystem(outFile.getAbsolutePath());
-                    });
+                    Set<FileUpload> uploads = ctx.fileUploads();
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Uploaded:\n");
+                    for(FileUpload fu : uploads) {
+                        JsonObject jo = new JsonObject();
+                        jo.put("fileName", fu.fileName());
+                        jo.put("name", fu.name());
+                        jo.put("uploadedFileName", fu.uploadedFileName());
+                        System.out.println(jo.encodePrettily());
+                        File f = new File(fu.fileName());
+                        File outFile = new File(dirr, f.getName());
+                        File loadedFile = new File(fu.uploadedFileName());
+                        if (outFile.exists()) {
+                            //TODO
+                        } else {
+                            try {
+                                loadedFile.renameTo(outFile);
+                                sb.append(outFile.getName()).append(",\n");
+                            } catch (Exception e) {
+                                try {
+                                    loadedFile.delete();
+                                } catch (Exception ex) {
+                                    //TODO
+                                }
+                            }
+                        }
+                    }
+                    ctx.response().putHeader("content-type", "text/html").end(sb.toString());
                 } else if (req.method() == HttpMethod.GET) {
                     String actionName = "";
                     ctx.response().putHeader("content-type", "text/html").end(getFormContent(actionName));
@@ -96,7 +114,8 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 "<body>\n" +
 "\n" +
 "<form action=\""+actionName+"\" ENCTYPE=\"multipart/form-data\" method=\"POST\" name=\"fileform\">\n" +
-"    choose a file to upload:<input type=\"file\" name=\"uploadedfile\"/><br>\n" +
+"    choose a file to upload:<input type=\"file\" name=\"uploadedfiles\" multiple=\"multiple\"/><br>\n" +
+"    <input type=\"text\" name=\"dirname\"/>\n" +
 "    <input type=\"submit\"/>\n" +
 "    <input type=\"hidden\" name=\"edit\" value=\"2\"/>\n" +
 "</form>\n" +
@@ -105,6 +124,7 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 "</html>";
     }
 }
+//TODO encoding
 /*
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
         "http://www.w3.org/TR/html4/loose.dtd">
@@ -115,7 +135,8 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 <body>
 
 <form action="actionName" ENCTYPE="multipart/form-data" method="POST" name="fileform">
-    choose a file to upload:<input type="file" name="uploadedfile"/><br>
+    choose a file to upload:<input type="file" name="uploadedfiles" multiple="multiple"/><br>
+    <input type="text" name="dirname"/>
     <input type="submit"/>
     <input type="hidden" name="edit" value="2"/>
 </form>
