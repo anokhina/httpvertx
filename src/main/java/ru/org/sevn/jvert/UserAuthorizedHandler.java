@@ -15,7 +15,6 @@
  */
 package ru.org.sevn.jvert;
 
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.ext.web.RoutingContext;
 
 public class UserAuthorizedHandler implements io.vertx.core.Handler<RoutingContext> {
@@ -32,7 +31,7 @@ public class UserAuthorizedHandler implements io.vertx.core.Handler<RoutingConte
         if (authorizer.isAllowed(rc.user(), rc)) {
             handler.handle(rc);
         } else {
-            rc.fail(HttpResponseStatus.FORBIDDEN.code()); //403
+            rc.next();
         }
     }
     

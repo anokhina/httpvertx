@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,7 +42,7 @@ import ru.org.sevn.util.ComplexFilenameFilter;
 import ru.org.sevn.util.DirNotHiddenFilenameFilter;
 import ru.org.sevn.util.FileUtil;
 
-public class RssVerticle extends AbstractVerticle implements Runnable {
+public class RssVerticle extends AbstractVerticle implements Runnable, Updater {
     
     public static final String FILE_NAME = "rss.xml";
     public static final String FILE_NAME_HTML = "index.html";
@@ -134,9 +135,26 @@ public class RssVerticle extends AbstractVerticle implements Runnable {
 						), lastUpdatedFilter);
         
     }
+    
+    private ScheduledFuture<?> scheduledFuture;
     public void start(Future<Void> startFuture) {
-        executor.scheduleAtFixedRate(this, initialDelay, period, unit);
-    }    
+        runIt(initialDelay);
+    }
+    
+    private void runIt(long initialDelay) {
+        scheduledFuture = executor.scheduleAtFixedRate(this, initialDelay, period, unit);
+    }
+    
+    @Override
+    public void forceUpdate() {
+        executor.schedule(new Runnable() {
+            public void run() { 
+                if (scheduledFuture.cancel(false)) {
+                    runIt(0);
+                }
+            }
+        }, 0, TimeUnit.SECONDS);
+    }
 
     @Override
     public void run() {

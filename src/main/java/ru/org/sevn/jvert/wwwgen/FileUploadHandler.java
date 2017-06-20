@@ -22,6 +22,7 @@ import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
 import java.io.File;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,13 +30,15 @@ import java.util.logging.Logger;
 public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> {
     
     private final JsonObject config;
+    private final Updater updater;
     
-    public FileUploadHandler(String wpathDelim, String dirpath) {
-        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath));
+    public FileUploadHandler(String wpathDelim, String dirpath, Updater updater) {
+        this(new JsonObject().put("wpathDelim", wpathDelim).put("dirpath", dirpath), updater);
     }
     
-    public FileUploadHandler(JsonObject config) {
+    public FileUploadHandler(JsonObject config, Updater updater) {
         this.config = config;
+        this.updater = updater;
     }
     
     protected String getWpathDelim() {
@@ -50,6 +53,7 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
     public void handle(RoutingContext ctx) {
         HttpServerRequest req = ctx.request();
         String edit = req.getParam("edit");
+        String dirname = req.getParam("dirname");
         if (edit != null) {
             String path = req.path();
             path = path.substring(getWpathDelim().length());
@@ -64,11 +68,36 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
             }
             if (dir.exists()) {
                                 
+                if (dirname != null) {
+                    File newDir = new File(dir, dirname);
+                    if (newDir.exists()) {
+                        if (newDir.isDirectory()) {
+                            dir = newDir;
+                        } else {
+                            ctx.fail(403);
+                            return;
+                            //TODO
+                        }
+                    } else {
+                        try {
+                            newDir.mkdirs();
+                            Files.write(new File(newDir, ".title.txt").toPath(), dirname.getBytes("UTF-8"));
+                            dir = newDir;
+                        } catch (Exception e) {
+                            Logger.getLogger(FileUploadHandler.class.getName()).log(Level.SEVERE, null, e);
+                            ctx.fail(e);
+                            return;
+                        }
+                    }
+                }
                 final File dirr = dir; 
+                    
                 if (req.method() == HttpMethod.POST) {
                     Set<FileUpload> uploads = ctx.fileUploads();
+                    StringBuilder sbNot = new StringBuilder();
                     StringBuilder sb = new StringBuilder();
-                    sb.append("Uploaded:\n");
+                    sb.append("<p>Uploaded:\n");
+                    sbNot.append("<p>Not loaded:\n");
                     for(FileUpload fu : uploads) {
                         JsonObject jo = new JsonObject();
                         jo.put("fileName", fu.fileName());
@@ -79,21 +108,30 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
                         File outFile = new File(dirr, f.getName());
                         File loadedFile = new File(fu.uploadedFileName());
                         if (outFile.exists()) {
-                            //TODO
+                            sbNot.append(outFile.getName()).append(",\n");
+                            try {
+                                loadedFile.delete();
+                            } catch (Exception ex) {
+                                Logger.getLogger(FileUploadHandler.class.getName()).log(Level.SEVERE, null, ex);
+                            }
                         } else {
                             try {
                                 loadedFile.renameTo(outFile);
                                 sb.append(outFile.getName()).append(",\n");
                             } catch (Exception e) {
+                                Logger.getLogger(FileUploadHandler.class.getName()).log(Level.SEVERE, null, e);
                                 try {
                                     loadedFile.delete();
                                 } catch (Exception ex) {
-                                    //TODO
+                                    Logger.getLogger(FileUploadHandler.class.getName()).log(Level.SEVERE, null, ex);
                                 }
                             }
                         }
                     }
-                    ctx.response().putHeader("content-type", "text/html").end(sb.toString());
+                    ctx.response().putHeader("content-type", "text/html").end(sb.toString()+sbNot.toString());
+                    if (updater != null) {
+                        updater.forceUpdate();
+                    }
                 } else if (req.method() == HttpMethod.GET) {
                     String actionName = "";
                     ctx.response().putHeader("content-type", "text/html").end(getFormContent(actionName));
@@ -105,17 +143,32 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
     }    
 
     public String getFormContent(String actionName) {
-        return "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" +
-"        \"http://www.w3.org/TR/html4/loose.dtd\">\n" +
+        return "<!DOCTYPE HTML>\n" +
 "<html>\n" +
 "<head>\n" +
+"	<meta charset=\"utf-8\">\n" +
 "    <title></title>\n" +
 "</head>\n" +
+"<script language=\"JavaScript\" type=\"text/javascript\">\n" +
+"function handleBrowseClick(fi) {\n" +
+"    var fileinput = document.getElementById(fi);\n" +
+"    fileinput.click();\n" +
+"}\n" +
+"function handleChange(fi, ti) {\n" +
+"    var fileinput = document.getElementById(fi);\n" +
+"    var textinput = document.getElementById(ti);\n" +
+"    textinput.value = fileinput.value;\n" +
+"}\n" +
+"</script>\n" +
 "<body>\n" +
 "\n" +
 "<form action=\""+actionName+"\" ENCTYPE=\"multipart/form-data\" method=\"POST\" name=\"fileform\">\n" +
-"    choose a file to upload:<input type=\"file\" name=\"uploadedfiles\" multiple=\"multiple\"/><br>\n" +
-"    <input type=\"text\" name=\"dirname\"/>\n" +
+"    Part name:<input type=\"text\" name=\"dirname\" style=\"width: 100%;\"/>\n" +
+"\n" +
+"    Choose a file to upload:<input type=\"file\" name=\"uploadedfiles\" id=\"uploadedfiles\" multiple=\"multiple\" onChange=\"handleChange('uploadedfiles','filenames')\" style=\"width: 100%;\"/><br>\n" +
+"    <!--input type=\"button\" value=\"Click to select file\" onclick=\"handleBrowseClick('uploadedfiles');\"/-->\n" +
+"    <textarea id=\"filenames\" readonly=\"true\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"> </textarea>\n" +
+"\n" +
 "    <input type=\"submit\"/>\n" +
 "    <input type=\"hidden\" name=\"edit\" value=\"2\"/>\n" +
 "</form>\n" +
@@ -124,19 +177,33 @@ public class FileUploadHandler implements io.vertx.core.Handler<RoutingContext> 
 "</html>";
     }
 }
-//TODO encoding
 /*
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
-        "http://www.w3.org/TR/html4/loose.dtd">
+<!DOCTYPE HTML>
 <html>
 <head>
+	<meta charset="utf-8">
     <title></title>
 </head>
+<script language="JavaScript" type="text/javascript">
+function handleBrowseClick(fi) {
+    var fileinput = document.getElementById(fi);
+    fileinput.click();
+}
+function handleChange(fi, ti) {
+    var fileinput = document.getElementById(fi);
+    var textinput = document.getElementById(ti);
+    textinput.value = fileinput.value;
+}
+</script>
 <body>
 
 <form action="actionName" ENCTYPE="multipart/form-data" method="POST" name="fileform">
-    choose a file to upload:<input type="file" name="uploadedfiles" multiple="multiple"/><br>
-    <input type="text" name="dirname"/>
+    Part name:<input type="text" name="dirname" style="width: 100%;"/>
+
+    Choose a file to upload:<input type="file" name="uploadedfiles" id="uploadedfiles" multiple="multiple" onChange="handleChange('uploadedfiles','filenames')" style="width: 100%;"/><br>
+    <!--input type="button" value="Click to select file" onclick="handleBrowseClick('uploadedfiles');"/-->
+    <textarea id="filenames" readonly="true" rows="14" style="width: 100%;" wrap="soft"> </textarea>
+
     <input type="submit"/>
     <input type="hidden" name="edit" value="2"/>
 </form>

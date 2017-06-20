@@ -340,15 +340,17 @@ public class HttpVerticle extends AbstractVerticle {
                             String wpathDelim = "/"+webpath+"/";
 
                             ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = null;
+                            RssVerticle rssVerticle = null;
                             if (jobj.containsKey("htmlgen")) {
                                 genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), new File(dirpathGen), webpath);
                                 genHandler.init();
-                                final RssVerticle rssVerticle = new RssVerticle(new File(dirpathRss), genHandler, scanPeriod);
+                                rssVerticle = new RssVerticle(new File(dirpathRss), genHandler, scanPeriod);
                                 vertx.deployVerticle(rssVerticle);
                                 if (schema == null) {
+                                    final RssVerticle rv = rssVerticle;
                                     router.route(wpath+"/*").handler(ctx -> {
-                                        if (rssVerticle.getSchema() == null) {
-                                            rssVerticle.setSchema(getSchemaUri(ctx.request()));
+                                        if (rv.getSchema() == null) {
+                                            rv.setSchema(getSchemaUri(ctx.request()));
                                         }
                                         ctx.next();
                                     });
@@ -380,7 +382,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
                             });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
-                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizerSu, new FileUploadHandler(wpathDelim, dirpath)));
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizerSu, new FileUploadHandler(wpathDelim, dirpath, rssVerticle)));
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, dirpathGen, ostore)));
                             router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
                                     new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
