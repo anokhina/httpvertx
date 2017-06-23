@@ -1,0 +1,54 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="telephone=no">
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+    <meta http-equiv="Pragma" content="no-cache"/>
+    <meta http-equiv="Expires" content="0"/>
+
+    <link rel="stylesheet" href="../login.css">
+    <link rel="stylesheet" href="../loginnie.css">
+<!--[if IE]>
+    <link rel="stylesheet" href="../loginnie.css">
+<![endif]-->
+</head>
+<body>
+
+<a href="/"><img src="../img/logo_txt.png" class="logoimg"/></a>
+<form action="/www/profile/auth" method="post" class="form-signin">
+    <h2 class="form-signin-heading">Смена пароля / <br>Change password</h2>
+<p>inv:invitation
+<!--[if IE]>
+    <div class="label">
+Текущий пароль / Current password
+    </div>
+<![endif]-->
+    <div>
+        <input type="password" name="password0" class="input-block-level" placeholder="Текущий пароль / Current password"/>
+    </div>
+<!--[if IE]>
+    <div class="label">
+Пароль / password
+    </div>
+<![endif]-->
+    <div>
+        <input type="password" name="password1" class="input-block-level" placeholder="Пароль / password"/>
+    </div>
+<!--[if IE]>
+    <div class="label">
+Пароль(повтор) / Retype password
+    </div>
+<![endif]-->
+    <div>
+        <input type="password" name="password2" class="input-block-level" placeholder="Пароль(повтор) / Retype password"/>
+    </div>
+    <div>
+        <input type="submit" value="Отправить / Submit" class="btn btn-large btn-primary"/>
+    </div>
+</form>
+
+</body>
+</html>

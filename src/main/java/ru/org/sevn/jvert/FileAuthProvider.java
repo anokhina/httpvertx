@@ -48,7 +48,7 @@ public class FileAuthProvider implements AuthProvider {
           return;
         }
         JsonObject jobj = userMatcher.getUserInfo(AUTH_SYSTEM + ":" + username);
-        if (jobj != null && auth.authenticate(password, username, jobj.getString("token"))) {
+        if (authenticated(jobj, password, username)) {
             PlainUser puser = new PlainUser(username);
             puser.setAuthProvider(this);
             
@@ -59,6 +59,15 @@ public class FileAuthProvider implements AuthProvider {
             return;
         }
         resultHandler.handle(Future.failedFuture("Invalid username/password"));
+    }
+    
+    //authenticated(userInfo, password, getUserName(userid));
+    public String getUserName(String userid) {
+        return userid.substring((AUTH_SYSTEM + ":").length());
+    }
+    
+    public boolean authenticated(JsonObject userInfo, String password, String username) {
+        return (userInfo != null && auth.authenticate(password, username, userInfo.getString("token")));
     }
 
     public UserMatcher getUserMatcher() {

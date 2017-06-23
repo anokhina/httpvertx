@@ -140,20 +140,41 @@ public class SimpleUserMatcher implements UserMatcher {
                             ljobj.put(el.getKey(), el.getValue());
                         });
                     }
-                    userGroups.put(id, jobj);
-                    
-                    JsonArray jarr = new JsonArray(new ArrayList(userGroups.values()));
-                    Files.write(file.toPath(), jarr.encodePrettily().getBytes("UTF-8"));
-                    fileTime = file.lastModified();
-                    ((ExtraUser)u).setLocalExtraData(jobj);
-                    ExtraUser.upgradeUserInfo(this, (ExtraUser)u);
+                    updateUserData(jobj, id, u);
                     return true;
                 } catch (Exception ex) {
                     Logger.getLogger(SimpleUserMatcher.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
+        } else {
+            try {
+                String uid = getId(u);
+                JsonObject jobj = getUserInfo(uid);
+                if (jobj != null) {
+                    jobj.put("token", jobj2set.getString("token"));
+
+                    updateUserData(jobj, id, u);
+                    return true;
+                }
+            } catch (Exception ex) {
+                Logger.getLogger(SimpleUserMatcher.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
         return false;
+    }
+    
+    private void updateUserData(JsonObject jobj, String id, User u) throws IOException {
+        userGroups.put(id, jobj);
+        updateUserFile();
+
+        ((ExtraUser)u).setLocalExtraData(jobj);
+        ExtraUser.upgradeUserInfo(this, (ExtraUser)u);
+        
+    }
+    private void updateUserFile() throws IOException {
+        JsonArray jarr = new JsonArray(new ArrayList(userGroups.values()));
+        Files.write(file.toPath(), jarr.encodePrettily().getBytes("UTF-8"));
+        fileTime = file.lastModified();
     }
     
 }

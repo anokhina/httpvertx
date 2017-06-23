@@ -22,6 +22,9 @@
 <p><a href="https://localhost:1945/logout">Выйти / Logout</a>
 <h2 class="form-signin-heading">Авторизован как <br> Logged in as</h2>
 <pre>$!{userIdDsc}</pre>
+<!-- #if (!$userId.startWith('google:')) -->
+<h2 class="form-signin-heading"><a href="/www/profile/auth">Сменить пароль <br> Change password</a></h2>
+<!-- #end -->
 <p>$!{configuredPaths}
 <!-- #else -->
 <h2 class="form-signin-heading">Авторизация / Login</h2>

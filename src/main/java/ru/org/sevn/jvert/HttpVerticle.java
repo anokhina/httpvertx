@@ -55,6 +55,7 @@ import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 import ru.org.sevn.jsecure.PassAuth;
+import ru.org.sevn.jvert.auth.ChangePasswordHandler;
 import ru.org.sevn.jvert.auth.InviteHandler;
 import ru.org.sevn.jvert.wwwgen.FileUploadHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
@@ -268,7 +269,7 @@ public class HttpVerticle extends AbstractVerticle {
         FileAuthProvider fileAuthProvider = new FileAuthProvider(userMatcher, new PassAuth(saltPrefix));
         io.vertx.ext.web.handler.AuthHandler authHandlerLogin = RedirectAuthHandler.create(fileAuthProvider,"/www/loginpage.html");
         router.route("/www/login").handler(authHandlerLogin);
-        router.route("/www/login").handler(new WebpathHandler());
+        router.route("/www/login").handler(new WebpathHandler()); //TODO use the same
         router.route("/www/loginauth").handler(FormLoginHandler.create(fileAuthProvider));
         router.post("/www/loginauth").failureHandler(ctx -> {
             int statusCode = ctx.statusCode();
@@ -286,6 +287,10 @@ public class HttpVerticle extends AbstractVerticle {
             router.route("/www/invite/*").handler(new InviteHandler("/www/invite/"));
             router.route("/www/invite/*").handler(new WebpathHandler());
             router.route("/www/inviteauth").handler(MultiFormLoginHandlerImpl.create(inviteAuthProvider));
+        }
+        {
+            router.route("/www/profile/auth").handler(new ChangePasswordHandler(fileAuthProvider));
+            router.route("/www/profile/*").handler(new WebpathHandler());
         }
         
         router.route("/logout").handler(context -> {
