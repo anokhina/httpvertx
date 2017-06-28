@@ -81,6 +81,7 @@ public class HttpVerticle extends AbstractVerticle {
     private SimpleUserMatcher userMatcher;
     private String saltPrefix = "salt";
     private String schema;
+    private String pubDir;
     private long scanPeriod = 5;
 
     public boolean isUseSsl() {
@@ -128,6 +129,13 @@ public class HttpVerticle extends AbstractVerticle {
             if (config.containsKey("schema")) {
                 try {
                     schema = config.getString("schema");
+                } catch (Exception e) {
+                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
+            if (config.containsKey("pubDir")) {
+                try {
+                    pubDir = config.getString("pubDir");
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
                 }
@@ -534,6 +542,9 @@ public class HttpVerticle extends AbstractVerticle {
         
         //webroot
         router.route("/www/*").handler(StaticHandler.create().setCachingEnabled(false).setDefaultContentEncoding("UTF-8"));
+
+        File pubDirFile = (pubDir == null) ? (new File(new File(System.getProperty("user.home")), "pub")) : (new File(pubDir));
+        router.route("/4all/*").handler(new FreeStaticHandlerImpl().setWebRoot(pubDirFile.getAbsolutePath()));
         
         router.route("/*").handler(ctx -> {
             ctx.fail(404);
