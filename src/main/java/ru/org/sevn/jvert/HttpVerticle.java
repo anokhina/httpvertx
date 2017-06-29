@@ -353,7 +353,7 @@ public class HttpVerticle extends AbstractVerticle {
                             String wpathDelim = "/"+webpath+"/";
 
                             ru.org.sevn.jvert.wwwgen.WWWGenHandler genHandler = null;
-                            RssVerticle rssVerticle = null;
+                            final RssVerticle rssVerticle;
                             if (jobj.containsKey("htmlgen")) {
                                 genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), new File(dirpathGen), webpath);
                                 genHandler.init();
@@ -373,6 +373,8 @@ public class HttpVerticle extends AbstractVerticle {
                             
                                 router.route(wpath+"/rss").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHandler()));
                                 router.route(wpath+"/rss/index.html").handler(new UserAuthorizedHandler(authorizer, rssVerticle.getRssHtmlHandler()));
+                            } else {
+                                rssVerticle = null;
                             }
                             
                             router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostore));
@@ -390,6 +392,14 @@ public class HttpVerticle extends AbstractVerticle {
                                         ctx.response().putHeader("content-type", "text/html").end("Dynamic page for " + webpath);
                                     })
                             );
+                            if (rssVerticle != null) {
+                                router.route(wpath+"/admin/forceUpdate").handler(
+                                        new UserAuthorizedHandler(authorizerSu, ctx -> {
+                                            rssVerticle.forceUpdate();
+                                            ctx.response().putHeader("content-type", "text/html").end("Force update for " + webpath);
+                                        })
+                                );
+                            }
                             router.route(wpath+"/logout/*").handler(ctx -> {
                                 ctx.clearUser();
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
