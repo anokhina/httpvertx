@@ -61,6 +61,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     private String logo = "logo.png";
     private String favico = "logo.ico";
     private String css = "css.css";
+    private String indexTemplateName = "indexTempl.html";
+    
     private final File dirRoot;
     private final File dirRootOut;
     private final String webpath;
@@ -69,6 +71,10 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	private FileNameComparator ASC = new FileNameComparator();
 	private FileNameComparator DSC = new FileNameComparator(false);
 	private DirNotHiddenFilenameFilter dirFileFilter = new DirNotHiddenFilenameFilter();
+
+    public void setIndexTemplateName(String indexTemplateName) {
+        this.indexTemplateName = indexTemplateName;
+    }
 
     public File getDirRootOut() {
         return dirRootOut;
@@ -570,7 +576,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		}
 		
 		System.out.println(">>>>>>>>>>>"+content.file);
-		Template template = ve.getTemplate("indexTempl.html");
+		Template template = ve.getTemplate(indexTemplateName);
 		VelocityContext context = new VelocityContext();
         context.put("useThumb", false);
 
