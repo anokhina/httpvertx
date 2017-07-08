@@ -15,9 +15,17 @@
  *******************************************************************************/
 package ru.org.sevn.utilhtml;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.safety.Whitelist;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import ru.org.sevn.common.mime.Mime;
 
 public class UtilHtml {
 	public static String getCleanHtmlBodyContent(String html) {
@@ -34,4 +42,41 @@ public class UtilHtml {
 		}
 		return null;
 	}
+    public static void walkFilesByLinks(File dir, String doccontent, Consumer<File> handler) {
+        walkFilesByLinks(dir, Jsoup.parseBodyFragment(doccontent), handler);
+    }
+    public static void walkFilesByLinks(File dir, Document doc, Consumer<File> handler) {
+        //System.out.println("+++++++++++++"+dir.getAbsolutePath()+":"+doc.html());
+        Elements links = doc.select("a[href]");
+        for (Element link : links) {
+            String abshref = link.attr("abs:href");
+            if (abshref != null && abshref.length() > 0) continue;
+            
+            String href = link.attr("href");
+            link.text();
+            File fl = new File(dir.getParentFile(), href);
+            System.out.println("+++++++++++++"+href+":"+fl.getAbsolutePath());
+            if (fl.exists()) {
+                File fldir = fl;
+                File flcontent = fl;
+                if (!fl.isDirectory()) {
+                    fldir = fl.getParentFile();
+                } else {
+                    flcontent = new File(fldir, "index.html");
+                }
+                if (flcontent.exists()) {
+                    handler.accept(flcontent);
+                    String contentType = Mime.getMimeTypeFile(flcontent.getName());
+                    if ("text/html".equals(contentType)) {
+                        try {
+                            Document fdoc = Jsoup.parse(flcontent, "UTF-8"); //TODO detect charset
+                            walkFilesByLinks(flcontent, fdoc, handler);
+                        } catch (IOException ex) {
+                            Logger.getLogger(UtilHtml.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
