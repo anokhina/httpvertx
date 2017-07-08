@@ -82,8 +82,8 @@ public class WinUrl implements Serializable {
 	public static WinUrl parseUrlContent(String s, String defaultSubj) {
 		WinUrl ed = new WinUrl();
 		String parsed[] = getUrlAndName(s);
-		ed.setSharedText(parsed[0]);
-		ed.setSharedSubj(parsed[1]);
+		ed.setSharedText(trim(parsed[0]));
+		ed.setSharedSubj(trim(parsed[1]));
 		if (ed.getSharedSubj() == null) {
 			ed.setSharedSubj(defaultSubj);
 		}
@@ -91,14 +91,19 @@ public class WinUrl implements Serializable {
 //System.err.println(ed.urlContent());
 		return ed;
 	}
-	
+	private static String trim(String s) {
+        if (s != null) {
+            return s.trim();
+        }
+        return s;
+    }
 	public static String[] getUrlAndName(String input) {
 		String[] urlname = new String[2];
         {
             String pref = "\nURL=";
             int idx = input.indexOf(pref);
             if (idx >=0) {
-                int idx2 = input.indexOf("\n", idx+1);
+                int idx2 = input.indexOf("\n", idx+1); //TODO eol
                 if (idx2 >= 0) {
                     urlname[0] = input.substring(idx + pref.length(), idx2);
                 } else {
