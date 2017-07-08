@@ -89,7 +89,7 @@ public class ShareUrlHandler implements io.vertx.core.Handler<RoutingContext> {
         
         ShareHandler.Hash exO = null;
         try {
-            Collection exObjs = ostore.getObjects(new String[] {"WPATH", "HASHID" }, new Object[] { getWpathDelim(), hash});
+            Collection exObjs = ostore.getObjects(ShareHandler.Hash.class, new String[] {"WPATH", "HASHID" }, new Object[] { getWpathDelim(), hash});
             if (exObjs.size() > 1) {
                 ctx.fail(403);
             } else if (exObjs.size() > 0) {

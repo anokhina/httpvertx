@@ -25,25 +25,29 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import ru.org.sevn.jvert.ChatHandler;
 
 public class SimpleSqliteObjectStore {
+
+    private ObjectDescriptor getObjectDescriptor(Class objType) {
+        return objectDescriptorMap.get(objType);
+    }
     
     public interface ObjectMapper<T> {
+        Class getType();
         void mapValues(T o, String colName, ResultSet rs) throws SQLException ;
         void setStatement(T o, String colName, int parameterIndex, PreparedStatement pstmt) throws SQLException ;
     }
     private final boolean loaded;
     private final String filePath;
-    private final Class objectClass;
-    private final ObjectMapper objectMapper;
+    private final Map<Class, ObjectDescriptor> objectDescriptorMap = new HashMap<>();
     
-    public SimpleSqliteObjectStore(String filePath, Class ocl, ObjectMapper omp) {
+    public SimpleSqliteObjectStore(String filePath, ObjectMapper ... ompArr) {
         this.filePath = filePath;
-        this.objectClass = ocl;
-        this.objectMapper = omp;
         boolean l = false;
         try {
             Class.forName("org.sqlite.JDBC");
@@ -52,44 +56,151 @@ public class SimpleSqliteObjectStore {
             Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
         }
         loaded = l;
-        makeCreateSql();
-        makeAddSql();
+        for (ObjectMapper omp : ompArr) {
+            ObjectDescriptor objectDescriptor = new ObjectDescriptor(omp);
+            objectDescriptorMap.put(objectDescriptor.getObjectMapper().getType(), objectDescriptor);
+        }
         File dbFile = new File(filePath);
         if (!dbFile.exists()) {
             initDB();
         }
     }
+
+    static class ObjectDescriptor {
+        private final ObjectMapper objectMapper;
+        private String createSql;
+        private String addSql;
+
+        public ObjectMapper getObjectMapper() {
+            return objectMapper;
+        }
+        
+        
+        public ObjectDescriptor(ObjectMapper objectMapper) {
+            this.objectMapper = objectMapper;
+            makeCreateSql();
+            makeAddSql();
+        }
     
-    public String getTableName() {
-        DBTableProperty[] tableProp = (DBTableProperty[])objectClass.getAnnotationsByType(DBTableProperty.class);
-        if (tableProp.length == 0) return null;
-        return tableProp[0].name();
-    }
-    
-    private String createSql;
-    private String addSql;
-    
-    private void makeCreateSql() {
-        if (createSql == null) {
-            String tableName = getTableName();
-            if (tableName == null) return;
+        public String getTableName() {
+            DBTableProperty[] tableProp = (DBTableProperty[])objectMapper.getType().getAnnotationsByType(DBTableProperty.class);
+            if (tableProp.length == 0) return null;
+            return tableProp[0].name();
+        }    
+        private void makeCreateSql() {
+            if (createSql == null) {
+                String tableName = getTableName();
+                if (tableName == null) return;
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("CREATE TABLE ").append(tableName).append(" (");
+                Field[] flds = objectMapper.getType().getDeclaredFields();
+                int j = 0;
+                for (int i = 0; i < flds.length; i++) {
+                    DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
+                    if (fldProp.length > 0) {
+                        if (j > 0) {
+                            sb.append(", ");
+                        }
+                        sb.append(fldProp[0].name()).append(" ").append(fldProp[0].dtype());
+                        j++;
+                    }
+                }
+                sb.append(")");
+                createSql = sb.toString();
+            }
+        }
+        private void makeAddSql() {
+            if (addSql == null) {
+                String tableName = getTableName();
+                if (tableName == null) return;
+
+                StringBuilder sb = new StringBuilder();
+                StringBuilder sb1 = new StringBuilder();
+                sb.append("INSERT INTO ").append(tableName).append(" (");
+                Field[] flds = objectMapper.getType().getDeclaredFields();
+                int j = 0;
+                for (int i = 0; i < flds.length; i++) {
+                    DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
+                    if (fldProp.length > 0) {
+                        if (j > 0) {
+                            sb.append(", ");
+                            sb1.append(", ");
+                        }
+                        if (!"ID".equals(fldProp[0].name())) {
+                            sb.append(fldProp[0].name()).append(" ");
+                            sb1.append("?");
+                            j++;
+                        }
+                    }
+                }
+                sb.append(")");
+                sb.append(" VALUES (").append(sb1).append(")");
+                addSql = sb.toString();
+            }
+        }
+        public Collection getObjects(Connection c, String[] colName, Object[] val) throws Exception {
+            ArrayList ret = new ArrayList();
 
             StringBuilder sb = new StringBuilder();
-            sb.append("CREATE TABLE ").append(tableName).append(" (");
-            Field[] flds = objectClass.getDeclaredFields();
+            sb.append("SELECT * FROM ").append(getTableName()).append(" WHERE ");
             int j = 0;
-            for (int i = 0; i < flds.length; i++) {
-                DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
-                if (fldProp.length > 0) {
-                    if (j > 0) {
-                        sb.append(", ");
-                    }
-                    sb.append(fldProp[0].name()).append(" ").append(fldProp[0].dtype());
-                    j++;
+            for (String cn : colName) {
+                if (j > 0) {
+                    sb.append(" and ");
                 }
+                sb.append(cn).append("=? ");
+                j++;
             }
-            sb.append(")");
-            createSql = sb.toString();
+
+            PreparedStatement pstmt = c.prepareStatement(sb.toString());
+            try {
+                for (int i = 0; i < colName.length; i++) {
+                    pstmt.setObject(i + 1, val[i]);
+                }
+
+                ResultSet rs = pstmt.executeQuery();
+                java.sql.ResultSetMetaData rsmd = rs.getMetaData();
+                while (rs.next()) {
+                    Object o = objectMapper.getType().getConstructor().newInstance();
+                    int colNum = rsmd.getColumnCount();
+                    for (int i = 1; i <= colNum; i++) {
+                        objectMapper.mapValues(o, rsmd.getColumnName(i), rs);
+                    }
+                    ret.add(o);
+                }
+            } finally {
+                pstmt.close();
+            }
+            return ret;
+        }
+        public int addObject(Connection c, Object o) throws SQLException {
+            PreparedStatement pstmt = c.prepareStatement(addSql);
+            try {
+                Field[] flds = objectMapper.getType().getDeclaredFields();
+                int j = 0;
+                for (int i = 0; i < flds.length; i++) {
+                    DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
+                    if (fldProp.length > 0) {
+                        if (!"ID".equals(fldProp[0].name())) {
+                            j++;
+                            objectMapper.setStatement(o, fldProp[0].name(), j, pstmt);
+                        }
+                    }
+                }
+
+                return pstmt.executeUpdate();
+            } finally {
+                pstmt.close();
+            }
+        }
+        protected void initDB(Connection c) throws SQLException {
+            Statement stmt = c.createStatement();
+            try {
+                stmt.executeUpdate(createSql);
+            } finally {
+                stmt.close();
+            }
         }
     }
     
@@ -97,12 +208,15 @@ public class SimpleSqliteObjectStore {
         if (loaded) {
             try {
                 
-                Connection c = DriverManager.getConnection(getConnectionString());
+                final Connection c = DriverManager.getConnection(getConnectionString());
                 try {
-                    Statement stmt = c.createStatement();
-                    
-                    stmt.executeUpdate(createSql);
-                    stmt.close();
+                    this.objectDescriptorMap.values().stream().forEach(objectDescriptor -> {
+                        try {
+                            objectDescriptor.initDB(c);
+                        } catch (SQLException ex) {
+                            Logger.getLogger(SimpleSqliteObjectStore.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    });
                 } finally {
                     c.close();                    
                 }
@@ -116,39 +230,14 @@ public class SimpleSqliteObjectStore {
         return "jdbc:sqlite:"+filePath;
     }
     
-    public Collection getObjects(String[] colName, Object[] val) throws Exception {
-        ArrayList ret = new ArrayList();
-        if (loaded) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("SELECT * FROM ").append(getTableName()).append(" WHERE ");
-            int j = 0;
-            for (String cn : colName) {
-                if (j > 0) {
-                    sb.append(" and ");
-                }
-                sb.append(cn).append("=? ");
-                j++;
-            }
-            
+    public Collection getObjects(Class objType, String[] colName, Object[] val) throws Exception {
+        Collection ret = new ArrayList();
+        ObjectDescriptor objectDescriptor = getObjectDescriptor(objType);
+        if (loaded && objectDescriptor != null) {
             try {
                 Connection c = DriverManager.getConnection(getConnectionString());
                 try {
-                    PreparedStatement pstmt = c.prepareStatement(sb.toString());
-                    for (int i = 0; i < colName.length; i++) {
-                        pstmt.setObject(i + 1, val[i]);
-                    }
-
-                    ResultSet rs = pstmt.executeQuery();
-                    java.sql.ResultSetMetaData rsmd = rs.getMetaData();
-                    while (rs.next()) {
-                        Object o = objectClass.getConstructor().newInstance();
-                        int colNum = rsmd.getColumnCount();
-                        for (int i = 1; i <= colNum; i++) {
-                            objectMapper.mapValues(o, rsmd.getColumnName(i), rs);
-                        }
-                        ret.add(o);
-                    }
-                    pstmt.close();
+                    ret = objectDescriptor.getObjects(c, colName, val);
                 } finally {
                     c.close();
                 }
@@ -159,58 +248,15 @@ public class SimpleSqliteObjectStore {
         return ret;
     }
         
-    private void makeAddSql() {
-        if (addSql == null) {
-            String tableName = getTableName();
-            if (tableName == null) return;
 
-            StringBuilder sb = new StringBuilder();
-            StringBuilder sb1 = new StringBuilder();
-            sb.append("INSERT INTO ").append(tableName).append(" (");
-            Field[] flds = objectClass.getDeclaredFields();
-            int j = 0;
-            for (int i = 0; i < flds.length; i++) {
-                DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
-                if (fldProp.length > 0) {
-                    if (j > 0) {
-                        sb.append(", ");
-                        sb1.append(", ");
-                    }
-                    if (!"ID".equals(fldProp[0].name())) {
-                        sb.append(fldProp[0].name()).append(" ");
-                        sb1.append("?");
-                        j++;
-                    }
-                }
-            }
-            sb.append(")");
-            sb.append(" VALUES (").append(sb1).append(")");
-            addSql = sb.toString();
-        }
-    }
     public int addObject(Object o) {
         int ret = 0;
+        ObjectDescriptor objectDescriptor = getObjectDescriptor(o.getClass());
         if (loaded) {
             try {
                 Connection c = DriverManager.getConnection(getConnectionString());
                 try {
-
-                    PreparedStatement pstmt = c.prepareStatement(addSql);
-
-                    Field[] flds = objectClass.getDeclaredFields();
-                    int j = 0;
-                    for (int i = 0; i < flds.length; i++) {
-                        DBProperty[] fldProp = (DBProperty[])flds[i].getAnnotationsByType(DBProperty.class);
-                        if (fldProp.length > 0) {
-                            if (!"ID".equals(fldProp[0].name())) {
-                                j++;
-                                objectMapper.setStatement(o, fldProp[0].name(), j, pstmt);
-                            }
-                        }
-                    }
-                    
-                    ret = pstmt.executeUpdate();
-                    pstmt.close();
+                    objectDescriptor.addObject(c, o);
                 } finally {
                     c.close();
                 }

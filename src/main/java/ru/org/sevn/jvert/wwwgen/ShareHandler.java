@@ -95,6 +95,11 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
                     o.setShareMode(rs.getInt(colName));
             }
         }
+
+        @Override
+        public Class getType() {
+            return Hash.class;
+        }
     }
     
     @DBTableProperty(name = "WEB_HASH")
@@ -258,7 +263,7 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
                 PassAuth pa = new PassAuth(o.getWpath());
                 Hash exO = null;
                 try {
-                    Collection exObjs = ostore.getObjects(new String[] {"WPATH", "USERID", "CPATH", "SHARE_MODE"}, new Object[] { o.getWpath(), o.getUserid(), path, o.getShareMode()});
+                    Collection exObjs = ostore.getObjects(Hash.class, new String[] {"WPATH", "USERID", "CPATH", "SHARE_MODE"}, new Object[] { o.getWpath(), o.getUserid(), path, o.getShareMode()});
                     if (exObjs.size() > 0) {
                         exO = (Hash)exObjs.stream().findFirst().get();
                     }
