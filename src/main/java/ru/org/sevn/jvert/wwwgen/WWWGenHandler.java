@@ -34,11 +34,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
+import ru.org.sevn.common.mime.Mime;
+import ru.org.sevn.common.solr.SolrIndexer;
 import ru.org.sevn.templ.ClasspathVelocityEngine;
 import ru.org.sevn.util.ComplexFilenameFilter;
 import ru.org.sevn.util.DirNotHiddenFilenameFilter;
@@ -67,6 +71,8 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     private final File dirRootOut;
     private final String webpath;
     private final String wpathDelim;
+    
+    private SolrIndexer indexer;
 
 	private FileNameComparator ASC = new FileNameComparator();
 	private FileNameComparator DSC = new FileNameComparator(false);
@@ -609,10 +615,39 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+                        indexContent(content);
 		}
 		
 		content.content = null;
 	}
+    
+    private void indexContent(final HtmlContent content) {
+        if (indexer != null) {
+            final String filePath = FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), content.file);
+            //TODO async
+            indexer.addHtml(webpath, filePath, content.content.toString());
+            
+            //indexer.addHtml(webpath, filePath, content.content.toString());
+            UtilHtml.walkFilesByLinks(content.file, content.content.toString(), flcontent -> {
+                String contentType = Mime.getMimeTypeFile(flcontent.getName());
+                if ("text/html".equals(contentType)) {
+                    try {
+                        indexer.addHtml(webpath, 
+                                FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), flcontent),
+                                new String(Files.readAllBytes(flcontent.toPath()), "UTF-8")
+                        );
+                    } catch (IOException ex) {
+                        Logger.getLogger(WWWGenHandler.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            });
+            try {
+                indexer.getSolrClient().commit();
+            } catch (SolrServerException | IOException ex) {
+                Logger.getLogger(WWWGenHandler.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }        
+    }
     
     private void makeImagesList(HashMap<String, Integer> imgFilesMap, JsonArray imgFiles, Menu root, FilenameFilter imgFilenameFilter, FilenameFilter vidFilenameFilter, Comparator<File> comparator) {
         File[] filesImg = sort(root.getFile().listFiles(
@@ -1145,4 +1180,12 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 		return content;
 	}
 */    
+
+    public SolrIndexer getIndexer() {
+        return indexer;
+    }
+
+    public void setIndexer(SolrIndexer indexer) {
+        this.indexer = indexer;
+    }
 }
