@@ -37,6 +37,15 @@ public class LogHandler implements io.vertx.core.Handler<RoutingContext> {
     
     private File lastLog;
     private int logidx;
+    private final String logPrefix;
+    
+    public LogHandler() {
+        this("");
+    }
+    
+    public LogHandler(String prefix) {
+        this.logPrefix = prefix;
+    }
     
     @Override
     public void handle(RoutingContext ctx) {
@@ -60,7 +69,7 @@ public class LogHandler implements io.vertx.core.Handler<RoutingContext> {
             }
             while (lastLog == null) {
                 logidx++;
-                File f = new File(ldir, "" + logidx + ".json");
+                File f = new File(ldir, logPrefix + logidx + ".json");
                 if (f.exists()) {
                     if (f.length() < MAX_LEN) {
                         lastLog = f;
