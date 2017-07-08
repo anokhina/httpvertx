@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
+import ru.org.sevn.common.solr.SolrIndexer;
 import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.ChangePasswordHandler;
 import ru.org.sevn.jvert.auth.InviteHandler;
@@ -327,8 +328,9 @@ public class HttpVerticle extends AbstractVerticle {
         }
         //TODO refresh settings
         
+        final SolrIndexer indexer = new SolrIndexer("www");
         final LinkedHashMap<String, WebDescriptor> websList = new LinkedHashMap<>();
-        final SimpleSqliteObjectStore ostore = new SimpleSqliteObjectStore("hashDb.db", ShareHandler.Hash.class, new ShareHandler.HashMapper());
+        final SimpleSqliteObjectStore ostore = new SimpleSqliteObjectStore("hashDb.db", new ShareHandler.HashMapper());
         if (webs != null) {
             for (Object o : webs) {
                 if (o instanceof JsonObject) {
@@ -357,6 +359,7 @@ public class HttpVerticle extends AbstractVerticle {
                             if (jobj.containsKey("htmlgen")) {
                                 genHandler = new ru.org.sevn.jvert.wwwgen.WWWGenHandler(jobj.getJsonObject("htmlgen"), new File(dirpath), new File(dirpathGen), webpath);
                                 genHandler.init();
+                                genHandler.setIndexer(indexer);
                                 rssVerticle = new RssVerticle(new File(dirpathRss), genHandler, scanPeriod);
                                 vertx.deployVerticle(rssVerticle);
                                 if (schema == null) {
@@ -559,8 +562,12 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/*").handler(ctx -> {
             ctx.fail(404);
         });
+        final LogHandler alertLoger = new LogHandler("alert");
         io.vertx.core.Handler<RoutingContext> failureHandler = ctx -> {
             //TODO error template
+            try {
+                alertLoger.handle(ctx);
+            } catch (Exception e) {}
             int statusCode = ctx.statusCode();
             HttpServerResponse response = ctx.response();
             response.putHeader("content-type", "text/plain");
