@@ -111,7 +111,7 @@
         <artifactId>google-http-client-jackson2</artifactId>
         <version>1.22.0</version>
     </dependency>
-    <!-- https://github.com/jcodec/jcodec  -->
+    <!-- https://github.com/jcodec/jcodec  media codecs-->
     <dependency>
       <groupId>org.jcodec</groupId>
       <artifactId>jcodec-javase</artifactId>
@@ -135,11 +135,25 @@
         <artifactId>jsoup</artifactId>
         <version>1.10.2</version>
     </dependency>
-        <dependency>
-            <groupId>com.github.kenglxn.qrgen</groupId>
-            <artifactId>javase</artifactId>
-            <version>2.2.0</version>
-        </dependency>
+    <!-- qrcode -->
+    <dependency>
+        <groupId>com.github.kenglxn.qrgen</groupId>
+        <artifactId>javase</artifactId>
+        <version>2.2.0</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.solr/solr-solrj -->
+    <dependency>
+        <groupId>org.apache.solr</groupId>
+        <artifactId>solr-solrj</artifactId>
+        <version>6.6.0</version>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/org.apache.solr/solr-core 
+    <dependency>
+        <groupId>org.apache.solr</groupId>
+        <artifactId>solr-core</artifactId>
+        <version>6.6.0</version>
+    </dependency>-->
+
   </dependencies>
 
   <build>
