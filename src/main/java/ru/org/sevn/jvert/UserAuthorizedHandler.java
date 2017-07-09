@@ -20,6 +20,7 @@ import io.vertx.ext.web.RoutingContext;
 public class UserAuthorizedHandler implements io.vertx.core.Handler<RoutingContext> {
     private final io.vertx.core.Handler<RoutingContext> handler;
     private final UserAuthorizer authorizer;
+    private boolean runIfEnded;
 
     public UserAuthorizedHandler(UserAuthorizer authorizer, io.vertx.core.Handler<RoutingContext> handler) {
         this.handler = handler;
@@ -29,10 +30,19 @@ public class UserAuthorizedHandler implements io.vertx.core.Handler<RoutingConte
     @Override
     public void handle(RoutingContext rc) {
         if (authorizer.isAllowed(rc.user(), rc)) {
-            handler.handle(rc);
+            if (!rc.response().ended() || runIfEnded) {
+                handler.handle(rc);
+            }
         } else {
             rc.next();
         }
     }
-    
+
+    public boolean isRunIfEnded() {
+        return runIfEnded;
+    }
+
+    public void setRunIfEnded(boolean runIfEnded) {
+        this.runIfEnded = runIfEnded;
+    }
 }

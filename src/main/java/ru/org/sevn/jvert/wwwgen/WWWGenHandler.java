@@ -41,6 +41,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
+import org.jsoup.Jsoup;
 import ru.org.sevn.common.mime.Mime;
 import ru.org.sevn.common.solr.SolrIndexer;
 import ru.org.sevn.templ.ClasspathVelocityEngine;
@@ -624,29 +625,45 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
     private void indexContent(final HtmlContent content) {
         if (indexer != null) {
             final String filePath = FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), content.file);
-            //TODO async
-            indexer.addHtml(webpath, filePath, content.content.toString());
+            //TODO add handler on error
+            indexer.addDocAsync(webpath, filePath, 
+                    content.content.toString(), 
+                    "text/html; charset=UTF-8",
+                    content.menu.getAnyTitle(), null);
             
-            //indexer.addHtml(webpath, filePath, content.content.toString());
-            UtilHtml.walkFilesByLinks(content.file, content.content.toString(), flcontent -> {
+            UtilHtml.walkFilesByLinks(content.file, content.content.toString(), (flcontent, fltitle)-> {
                 String contentType = Mime.getMimeTypeFile(flcontent.getName());
+                //System.out.println("+++++++++++>>"+contentType+":"+flcontent.getAbsolutePath());
+            
                 if ("text/html".equals(contentType)) {
-                    try {
-                        indexer.addHtml(webpath, 
+                    try { 
+                        String fileContent = new String(Files.readAllBytes(flcontent.toPath()), "UTF-8");
+                        indexer.addDocAsync(webpath,
                                 FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), flcontent),
-                                new String(Files.readAllBytes(flcontent.toPath()), "UTF-8")
+                                fileContent,
+                                "text/html",
+                                fltitle, 
+                                //Jsoup.parseBodyFragment(fileContent).title(),
+                                null
                         );
                     } catch (IOException ex) {
                         Logger.getLogger(WWWGenHandler.class.getName()).log(Level.SEVERE, null, ex);
                     }
+                } else if (contentType != null && acceptedContentType(contentType)) {
+                        indexer.addDocAsync(webpath,
+                                FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), flcontent),
+                                flcontent,
+                                fltitle,
+                                null
+                        );                    
                 }
             });
-            try {
-                indexer.getSolrClient().commit();
-            } catch (SolrServerException | IOException ex) {
-                Logger.getLogger(WWWGenHandler.class.getName()).log(Level.SEVERE, null, ex);
-            }
+            indexer.commitAsync(null);
         }        
+    }
+    private boolean acceptedContentType(String ct) {
+        
+        return Mime.isTextDocument(ct);
     }
     
     private void makeImagesList(HashMap<String, Integer> imgFilesMap, JsonArray imgFiles, Menu root, FilenameFilter imgFilenameFilter, FilenameFilter vidFilenameFilter, Comparator<File> comparator) {

@@ -17,6 +17,7 @@ package ru.org.sevn.utilhtml;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -42,10 +43,10 @@ public class UtilHtml {
 		}
 		return null;
 	}
-    public static void walkFilesByLinks(File dir, String doccontent, Consumer<File> handler) {
+    public static void walkFilesByLinks(File dir, String doccontent, BiConsumer<File, String> handler) {
         walkFilesByLinks(dir, Jsoup.parseBodyFragment(doccontent), handler);
     }
-    public static void walkFilesByLinks(File dir, Document doc, Consumer<File> handler) {
+    public static void walkFilesByLinks(File dir, Document doc, BiConsumer<File, String> handler) {
         //System.out.println("+++++++++++++"+dir.getAbsolutePath()+":"+doc.html());
         Elements links = doc.select("a[href]");
         for (Element link : links) {
@@ -53,9 +54,9 @@ public class UtilHtml {
             if (abshref != null && abshref.length() > 0) continue;
             
             String href = link.attr("href");
-            link.text();
+            
             File fl = new File(dir.getParentFile(), href);
-            System.out.println("+++++++++++++"+href+":"+fl.getAbsolutePath());
+            //System.out.println("+++++++++++++"+href+":"+fl.getAbsolutePath());
             if (fl.exists()) {
                 File fldir = fl;
                 File flcontent = fl;
@@ -65,7 +66,7 @@ public class UtilHtml {
                     flcontent = new File(fldir, "index.html");
                 }
                 if (flcontent.exists()) {
-                    handler.accept(flcontent);
+                    handler.accept(flcontent, link.text());
                     String contentType = Mime.getMimeTypeFile(flcontent.getName());
                     if ("text/html".equals(contentType)) {
                         try {

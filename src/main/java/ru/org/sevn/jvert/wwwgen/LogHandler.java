@@ -81,6 +81,7 @@ public class LogHandler implements io.vertx.core.Handler<RoutingContext> {
             
             obj.put("date", now.getTime());
             obj.put("dateStr", sdf.format(now));
+            obj.put("statusCode", ctx.statusCode());
             
             Session session = ctx.session();
             if (session != null) {

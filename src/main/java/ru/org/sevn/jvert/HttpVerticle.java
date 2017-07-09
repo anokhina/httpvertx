@@ -44,6 +44,7 @@ import io.vertx.ext.web.sstore.LocalSessionStore;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -51,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
@@ -59,6 +61,7 @@ import ru.org.sevn.jsecure.PassAuth;
 import ru.org.sevn.jvert.auth.ChangePasswordHandler;
 import ru.org.sevn.jvert.auth.InviteHandler;
 import ru.org.sevn.jvert.wwwgen.FileUploadHandler;
+import ru.org.sevn.jvert.wwwgen.FindHandler;
 import ru.org.sevn.jvert.wwwgen.HtmlCacheHandler;
 import ru.org.sevn.jvert.wwwgen.LogHandler;
 import ru.org.sevn.jvert.wwwgen.QRGenHandler;
@@ -403,6 +406,7 @@ public class HttpVerticle extends AbstractVerticle {
                                         })
                                 );
                             }
+                            router.route(wpath + "/search").handler(new UserAuthorizedHandler(authorizer, new FindHandler(indexer, webpath)));
                             router.route(wpath+"/logout/*").handler(ctx -> {
                                 ctx.clearUser();
                                 ctx.response().putHeader("location", "/").setStatusCode(302).end();
@@ -569,6 +573,7 @@ public class HttpVerticle extends AbstractVerticle {
                 alertLoger.handle(ctx);
             } catch (Exception e) {}
             int statusCode = ctx.statusCode();
+            if (ctx.failure() != null) ctx.failure().printStackTrace();
             HttpServerResponse response = ctx.response();
             response.putHeader("content-type", "text/plain");
             response.setChunked(false);
