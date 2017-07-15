@@ -34,7 +34,6 @@ import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.lang.StringEscapeUtils;
-import org.jsoup.Jsoup;
 import ru.org.sevn.common.data.DBProperty;
 import ru.org.sevn.common.data.DBTableProperty;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;

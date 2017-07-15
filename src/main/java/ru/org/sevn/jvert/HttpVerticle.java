@@ -44,15 +44,12 @@ import io.vertx.ext.web.sstore.LocalSessionStore;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
@@ -76,6 +73,7 @@ public class HttpVerticle extends AbstractVerticle {
     private static final int MB = 1024 * KB;
     private boolean useSsl = true;
     private String hostName = "localhost";
+    private String authSys;
     private int port = 1945;
     private JsonObject config;
     private String sslCertPathCer;// = "cert-04.cer";
@@ -154,6 +152,13 @@ public class HttpVerticle extends AbstractVerticle {
             if (config.containsKey("webs")) {
                 try {
                     webs = config.getJsonArray("webs", null);
+                } catch (Exception e) {
+                    Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
+                }
+            }
+            if (config.containsKey("authsys")) {
+                try {
+                    authSys = config.getString("authsys");
                 } catch (Exception e) {
                     Logger.getLogger(HttpVerticle.class.getName()).log(Level.SEVERE, null, e);
                 }
@@ -330,7 +335,7 @@ public class HttpVerticle extends AbstractVerticle {
 
             String servPath = "/chat/";
             router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
-            router.route(servPath+"*").handler(oauth2);
+            router.route(servPath+"*").handler(("google".equals(authSys)) ? oauth2 : authHandlerLogin);
             router.route(servPath+"*").handler(new ChatHandler(ostoreChatDb));
         }
         //TODO refresh settings
@@ -389,11 +394,7 @@ public class HttpVerticle extends AbstractVerticle {
                             
                             router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostoreHashDb));
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
-                            if ("google".equals(authsys)) {
-                                router.route(wpath+"/*").handler(oauth2);
-                            } else {
-                                router.route(wpath+"/*").handler(authHandlerLogin);
-                            }
+                            router.route(wpath+"/*").handler(("google".equals(authsys)) ? oauth2 : authHandlerLogin);
                             router.route(wpath).handler(ctx -> {
                                 redirect(ctx.request(), wpath + "/index.html");
                             });

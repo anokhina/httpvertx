@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import ru.org.sevn.jvert.ChatHandler;
 
 public class SimpleSqliteObjectStore {
 
@@ -53,7 +52,7 @@ public class SimpleSqliteObjectStore {
             Class.forName("org.sqlite.JDBC");
             l = true;
         } catch (ClassNotFoundException ex) {
-            Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(SimpleSqliteObjectStore.class.getName()).log(Level.SEVERE, null, ex);
         }
         loaded = l;
         for (ObjectMapper omp : ompArr) {
@@ -243,7 +242,7 @@ public class SimpleSqliteObjectStore {
                     c.close();                    
                 }
             } catch (SQLException ex) {
-                Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(SimpleSqliteObjectStore.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
     }
@@ -268,7 +267,7 @@ public class SimpleSqliteObjectStore {
                     c.close();
                 }
             } catch (SQLException ex) {
-                Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(SimpleSqliteObjectStore.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         return ret;
@@ -287,7 +286,7 @@ public class SimpleSqliteObjectStore {
                     c.close();
                 }
             } catch (SQLException ex) {
-                Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(SimpleSqliteObjectStore.class.getName()).log(Level.SEVERE, null, ex);
             }
 
         }
