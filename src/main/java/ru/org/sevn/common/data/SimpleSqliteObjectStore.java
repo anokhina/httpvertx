@@ -139,23 +139,36 @@ public class SimpleSqliteObjectStore {
                 addSql = sb.toString();
             }
         }
-        public Collection getObjects(Connection c, String[] colName, Object[] val) throws Exception {
+        public Collection getObjects(Connection c, String sql, String[] colName, Object[] val, String[] orderByFields, String[] orderByOrder) throws Exception {
             ArrayList ret = new ArrayList();
 
-            StringBuilder sb = new StringBuilder();
-            sb.append("SELECT * FROM ").append(getTableName()).append(" WHERE ");
-            for (int j = 0; j < colName.length; j++) {
-                if (j > 0) {
-                    sb.append(" and ");
+            if (sql == null) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("SELECT * FROM ").append(getTableName()).append(" WHERE ");
+                for (int j = 0; j < colName.length; j++) {
+                    if (j > 0) {
+                        sb.append(" and ");
+                    }
+                    if (val[j] instanceof Object[]) {
+                        sb.append(colName[j]).append(" between ? and ? ");
+                    } else {
+                        sb.append(colName[j]).append("=? ");
+                    }
                 }
-                if (val[j] instanceof Object[]) {
-                    
-                } else {
-                    sb.append(colName[j]).append("=? ");
+                if (orderByFields != null) {
+                    sb.append(" ORDER BY ");
+                    for (int i = 0; i < orderByFields.length; i++) {
+                        if (i > 0) { sb.append(", "); }
+                        sb.append(orderByFields[i]);
+                        if (orderByOrder != null && orderByOrder.length > i && orderByOrder[i] != null) {
+                            sb.append(" ").append(orderByOrder[i]);
+                        }
+                    }
                 }
+                sql = sb.toString();
             }
 
-            PreparedStatement pstmt = c.prepareStatement(sb.toString());
+            PreparedStatement pstmt = c.prepareStatement(sql);
             try {
                 int j = 0;
                 for (int i = 0; i < colName.length; i++) {
@@ -240,13 +253,17 @@ public class SimpleSqliteObjectStore {
     }
     
     public Collection getObjects(Class objType, String[] colName, Object[] val) throws Exception {
+        return getObjects(objType, null, colName, val, null, null);
+    }
+    
+    public Collection getObjects(Class objType, String sql, String[] colName, Object[] val, String[] orderByFields, String[] orderByOrder) throws Exception {
         Collection ret = new ArrayList();
         ObjectDescriptor objectDescriptor = getObjectDescriptor(objType);
         if (loaded && objectDescriptor != null) {
             try {
                 Connection c = DriverManager.getConnection(getConnectionString());
                 try {
-                    ret = objectDescriptor.getObjects(c, colName, val);
+                    ret = objectDescriptor.getObjects(c, sql, colName, val, orderByFields, orderByOrder);
                 } finally {
                     c.close();
                 }

@@ -19,24 +19,22 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
-import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.commons.lang.StringEscapeUtils;
+import org.jsoup.Jsoup;
 import ru.org.sevn.common.data.DBProperty;
 import ru.org.sevn.common.data.DBTableProperty;
 import ru.org.sevn.common.data.SimpleSqliteObjectStore;
@@ -60,22 +58,22 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         @Override
         public void mapValues(Message o, String colName, ResultSet rs) throws SQLException {
                         switch(colName) {
-                case "ID":
+                case Message.FIELD_ID:
                     o.setId(rs.getLong(colName));
                     break;
-                case "IS_READ":
+                case Message.FIELD_READ:
                     o.setRead(rs.getInt(colName) != 0);
                     break;
-                case "CREATE_DATE":
+                case Message.FIELD_DATE:
                     o.setDate(rs.getDate(colName));
                     break;
-                case "UFROM":
+                case Message.FIELD_FROM:
                     o.setFrom(rs.getString(colName));
                     break;
-                case "UTO":
+                case Message.FIELD_TO:
                     o.setTo(rs.getString(colName));
                     break;
-                case "MSG":
+                case Message.FIELD_MSG:
                     o.setMsg(rs.getString(colName));
                     break;
             }
@@ -84,19 +82,19 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         @Override
         public void setStatement(Message o, String colName, int parameterIndex, PreparedStatement pstmt) throws SQLException {
             switch(colName) {
-                case "IS_READ":
+                case Message.FIELD_READ:
                     pstmt.setInt(parameterIndex, o.isRead()? 1 : 0);
                     break;
-                case "CREATE_DATE":
+                case Message.FIELD_DATE:
                     pstmt.setDate(parameterIndex, new java.sql.Date(o.getDate().getTime()));
                     break;
-                case "UFROM":
+                case Message.FIELD_FROM:
                     pstmt.setString(parameterIndex, o.getFrom());
                     break;
-                case "UTO":
+                case Message.FIELD_TO:
                     pstmt.setString(parameterIndex, o.getTo());
                     break;
-                case "MSG":
+                case Message.FIELD_MSG:
                     pstmt.setString(parameterIndex, o.getMsg());
                     break;
             }
@@ -142,13 +140,14 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
             this.read = read;
         }
 
+        public Message() {}
         
-        private Message(String uidfrom, String uidto, String msgStr) {
+        public Message(String uidfrom, String uidto, String msgStr) {
             setFrom(uidfrom);
             setTo(uidto);
             setMsg(msgStr);
         }
-        private Message(String uidfrom, String uidto, String msgStr, Date d) {
+        public Message(String uidfrom, String uidto, String msgStr, Date d) {
             setFrom(uidfrom);
             setTo(uidto);
             setMsg(msgStr);
@@ -224,8 +223,18 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
             
             try {
                 return (Collection<Message>)ostore.getObjects(Message.class,
-                        new String[] { Message.FIELD_TO, Message.FIELD_DATE },
-                        new Object[] {uidto, new Object[] {cfrom.getTime(), cto.getTime()} } );
+                            "SELECT * FROM ("+
+                                    " SELECT * FROM "+Message.TABLE_NAME+
+                                    " WHERE "+Message.FIELD_FROM+" = ? AND "+Message.FIELD_TO+" = ? AND " + Message.FIELD_DATE + " BETWEEN ? AND ? " +
+                                    " UNION " +
+                                    " SELECT * FROM "+Message.TABLE_NAME+
+                                    " WHERE "+Message.FIELD_FROM+" = ? AND "+Message.FIELD_TO+" = ? AND " + Message.FIELD_DATE + " BETWEEN ? AND ? " +
+                                    " ) ORDER BY " + Message.FIELD_DATE + " DESC "
+                        ,
+                        new String[] { Message.FIELD_FROM, Message.FIELD_TO, Message.FIELD_DATE,  Message.FIELD_FROM, Message.FIELD_TO, Message.FIELD_DATE},
+                        new Object[] { uidfrom, uidto, new Object[] {cfrom.getTime(), cto.getTime()} , 
+                            uidto, uidfrom, new Object[] {cfrom.getTime(), cto.getTime()} },
+                        new String[] {Message.FIELD_DATE}, new String[] {"DESC"});
             } catch (Exception ex) {
                 Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -240,7 +249,6 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 
         @Override
         public Collection<String> getChats(String uidfrom) {
-            System.out.println("++++++++++"+uidfrom);
             HashSet<String> ret = new HashSet<>();
             try {
                 //TODO
@@ -271,204 +279,6 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         }
         
     }
-//    static class SQLiteMessageStore implements MessageStore {
-//        
-//        private final boolean loaded;
-//        private final String filePath;
-//        
-//        public SQLiteMessageStore(String filePath) {
-//            this.filePath = filePath;
-//            boolean l = false;
-//            try {
-//                Class.forName("org.sqlite.JDBC");
-//                l = true;
-//            } catch (ClassNotFoundException ex) {
-//                Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
-//            }
-//            loaded = l;
-//            File dbFile = new File(filePath);
-//            if (!dbFile.exists()) {
-//                initDB();
-//            }
-//        }
-//        
-//        protected void initDB() {
-//            if (loaded) {
-//                try {
-//                    Connection c = DriverManager.getConnection(getConnectionString());
-//                    try {
-//                        Statement stmt = c.createStatement();
-//                        String sql = "CREATE TABLE CHAT_MSG " +
-//                                     "(ID INTEGER PRIMARY KEY  AUTOINCREMENT   NOT NULL," +
-//                                     " FROM_ID        TEXT    NOT NULL, " + 
-//                                     " TO_ID          TEXT    NOT NULL, " + 
-//                                     " MSG            TEXT    NOT NULL, " + 
-//                                     " MSG_DATE       DATE)"; 
-//                        stmt.executeUpdate(sql);
-//                        stmt.close();
-//                    } finally {
-//                        c.close();                    
-//                    }
-//                } catch (SQLException ex) {
-//                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
-//                }
-//            }
-//        }
-//        
-//        protected String getConnectionString() {
-//            return "jdbc:sqlite:"+filePath;
-//        }
-//
-//        @Override
-//        public Collection<Message> getMessages(String uidfrom, String uidto, Date... days) {
-//            ArrayList<Message> ret = new ArrayList<>();
-//            Date day = new Date();
-//            if (days.length > 0 && days[0] != null) {
-//                day = days[0];
-//            }
-//            Calendar cfrom = Calendar.getInstance();
-//            Calendar cto = Calendar.getInstance();
-//            cfrom.setTime(day);
-//            cfrom.set(Calendar.HOUR_OF_DAY, 0);
-//            cfrom.set(Calendar.MINUTE, 0);
-//            cfrom.set(Calendar.SECOND, 0);
-//            cto.setTime(cfrom.getTime());
-//            cto.add(Calendar.DAY_OF_YEAR, 1);
-//            if (loaded) {
-//                try {
-//                    Connection c = DriverManager.getConnection(getConnectionString());
-//                    try {
-//                        PreparedStatement pstmt = c.prepareStatement("SELECT DISTINCT * FROM CHAT_MSG WHERE MSG_DATE BETWEEN ? AND ? AND FROM_ID = ? AND TO_ID = ? OR FROM_ID = ? AND TO_ID = ? ORDER BY MSG_DATE DESC");
-//                        pstmt.setDate(1, new java.sql.Date(cfrom.getTimeInMillis()));
-//                        pstmt.setDate(2, new java.sql.Date(cto.getTimeInMillis()));
-//                        pstmt.setString(3, uidfrom);
-//                        pstmt.setString(4, uidto);
-//                        pstmt.setString(5, uidto);
-//                        pstmt.setString(6, uidfrom);
-//                        
-//                        ResultSet rs = pstmt.executeQuery();
-//                        while (rs.next()) {
-//                            Message msg = new Message(rs.getString("FROM_ID"), rs.getString("TO_ID"), rs.getString("MSG"), rs.getDate("MSG_DATE"));
-//                            ret.add(msg);
-//                        }
-//                        pstmt.close();
-//                    } finally {
-//                        c.close();
-//                    }
-//                } catch (SQLException ex) {
-//                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
-//                }
-//            }
-//            return ret;
-//        }
-//
-//        @Override
-//        public int addMessage(String uidfrom, String uidto, String msgStr) {
-//            int ret = 0;
-//            if (loaded) {
-//                try {
-//                    Connection c = DriverManager.getConnection(getConnectionString());
-//                    try {
-//
-//                        PreparedStatement pstmt = c.prepareStatement("INSERT INTO CHAT_MSG (FROM_ID, TO_ID, MSG, MSG_DATE) VALUES (?, ?, ?, ?)");
-//                        pstmt.setString(1, uidfrom);
-//                        pstmt.setString(2, uidto);
-//                        pstmt.setString(3, msgStr);
-//                        pstmt.setDate(4, new java.sql.Date(new Date().getTime()));
-//                        ret = pstmt.executeUpdate();
-//                        pstmt.close();
-//                    } finally {
-//                        c.close();
-//                    }
-//                } catch (SQLException ex) {
-//                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
-//                }
-//                
-//            }
-//            return ret;
-//        }
-//
-//        @Override
-//        public Collection<String> getChats(String uidfrom) {
-//            HashSet<String> ret = new HashSet<>();
-//            if (loaded) {
-//                try {
-//                    Connection c = DriverManager.getConnection(getConnectionString());
-//                    try {
-//                        PreparedStatement pstmt = c.prepareStatement("SELECT DISTINCT FROM_ID, TO_ID FROM CHAT_MSG WHERE FROM_ID = ? OR TO_ID = ?");
-//                        pstmt.setString(1, uidfrom);
-//                        pstmt.setString(2, uidfrom);
-//                        
-//                        ResultSet rs = pstmt.executeQuery();
-//                        while (rs.next()) {
-//                            String from = rs.getString("FROM_ID");
-//                            String to = rs.getString("TO_ID");
-//                            ret.add(from);
-//                            ret.add(to);
-//                        }
-//                        pstmt.close();
-//                    } finally {
-//                        c.close();
-//                    }
-//                } catch (SQLException ex) {
-//                    Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
-//                }
-//            }
-//            return ret;
-//        }
-//        
-//    }
-    
-//    static class MemoryMessageStore implements MessageStore {
-//        public HashMap<String, HashMap<String, List<Message>>> map = new HashMap();
-//        
-//        public Collection<Message> getMessages(String uidfrom, String uidto, Date ... days) {
-//            List<Message> chat = getUserChat(uidfrom, uidto, false);
-//            if (chat != null) {
-//                return new ArrayList<>(chat);
-//            } else {
-//                return new ArrayList<>();
-//            }
-//        }
-//        private List<Message> getUserChat(String uidfrom, String uidto, boolean create) {
-//            HashMap<String, List<Message>> chats = map.get(uidfrom);
-//            if (chats == null) {
-//                if (!create) {
-//                    return null;
-//                }
-//                chats = new HashMap<>();
-//                map.put(uidfrom, chats);
-//            }
-//            List<Message> ret = chats.get(uidto);
-//            if (ret == null) {
-//                if (!create) {
-//                    return null;
-//                }
-//                ret = new ArrayList<>();
-//                chats.put(uidto, ret);
-//            }
-//            return ret;
-//        }
-//        public int addMessage(String uidfrom, String uidto, String msgStr) {
-//            Message msg = new Message(uidfrom, uidto, msgStr);
-//            
-//            getUserChat(uidfrom, uidto, true).add(msg);
-//            getUserChat(uidto, uidfrom, true).add(msg);
-//            return 1;
-//        }
-//        
-//        public Collection<String> getChats(String uidfrom) {
-//            HashMap<String, List<Message>> chats = map.get(uidfrom);
-//            ArrayList<String> ret;
-//            if (chats != null) {
-//                ret = new ArrayList(chats.keySet());
-//            } else {
-//                ret = new ArrayList<>();
-//            }
-//            Collections.sort(ret);
-//            return ret;
-//        }
-//    }
     
     @Override
     public void handle(RoutingContext ctx) {
@@ -489,11 +299,8 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 //url=http://webdesign.about.com/
                 HttpServerRequest r = ctx.request();
                 String url = r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path() + "?chatTo=" + params.get("chatTo");
-                sb.append("<html><head>");
-                sb.append("<meta http-equiv=\"refresh\" content=\"10;url='"+url+"'\">");
-                sb.append("</head><body>");
-                sb.append("<pre>");
-                sb.append("Chats:\nchatTo=\nchatMsg=\n");
+
+                sb.append("Chat\n");
                 sb.append("from:").append(user.getId()).append("\n");
                 sb.append("to  :").append(params.get("chatTo")).append("\n");
                 
@@ -502,27 +309,33 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 
                 for(Message m : messageStore.getMessages(user.getId(), params.get("chatTo"))) {
                     sb.append(dateFormat.format(m.getDate())).append(">>>");
-                    sb.append(m.getFrom()).append(":");
-                    sb.append(m.getMsg()).append("\n");
+                    sb.append(StringEscapeUtils.escapeHtml(m.getFrom())).append(":");
+                    sb.append(addUrls(StringEscapeUtils.escapeHtml(m.getMsg()))).append("\n");
                 }
-                sb.append("</pre>");
-                sb.append("</body></html>");
                 
                 secureSet(ctx.response());
-                ctx.response().putHeader("content-type", "text/html").end(sb.toString());
+                ctx.response().putHeader("content-type", "text/html").end(
+                        STR_CHAT
+                                .replace("action=\"actionName\"", "action=\"\"")
+                                .replace("url='refreshurl'", "url='"+url+"'")
+                                .replace("input type=\"hidden\" name=\"chatTo\" value=\"user\"", "input type=\"hidden\" name=\"chatTo\" value=\""+params.get("chatTo")+"\"")
+                                .replace("<messages/>", sb.toString())                        
+                );
                 
             } else {
+                
                 StringBuilder sb = new StringBuilder();
-                sb.append("<pre>");
-                sb.append("Chats:\nchatTo=\nchatMsg=\n");
                 for(String toid : messageStore.getChats(user.getId())) {
                     sb.append("<a href=\"?chatTo=").append(toid).append("\">");
                     sb.append(toid).append("</a>").append("\n");
                 }
-                sb.append("</pre>");
                 
                 secureSet(ctx.response());
-                ctx.response().putHeader("content-type", "text/html").end(sb.toString());
+                ctx.response().putHeader("content-type", "text/html").end(
+                        STR_CHATS
+                                .replace("action=\"actionName\"", "action=\"\"")
+                                .replace("<messages/>", sb.toString())
+                );
             }
         } else {
             ctx.fail(HttpResponseStatus.FORBIDDEN.code());
@@ -530,5 +343,103 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 
     }
     
+    private String addUrls(String str) {
+        String ustr = StringEscapeUtils.unescapeHtml(str);
+        Matcher urlMatcher = urlPattern.matcher(ustr);
+        String ret = str;
+        HashSet<String> uset = new HashSet<>();
+        while (urlMatcher.find()) {
+            String url = ustr.substring(urlMatcher.start(0), urlMatcher.end(0));
+            uset.add(url);
+        }
+        for(String url : uset) {
+            String eurl = StringEscapeUtils.escapeHtml(url);
+            ret = ret.replace(eurl, "<a href=\""+url+"\">"+url+"</a>");
+        }
+        return ret;
+    }
+
+    private Pattern urlPattern = Pattern.compile(
+            "\\b((https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;\\*]*[-a-zA-Z0-9+&@#/%=~_|\\*])");
+    private static final String STR_CHAT = "<!DOCTYPE HTML>\n" +
+"<html>\n" +
+"<head>\n" +
+"    <meta charset=\"utf-8\">\n" +
+"    <title>title</title>\n" +
+"</head>\n" +
+"<body>\n" +
+"\n" +
+"<form action=\"actionName\" method=\"POST\" name=\"chatform\">\n" +
+"    <textarea            name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"> </textarea>\n" +
+"    <input type=\"hidden\" name=\"chatTo\" value=\"user\"/>\n" +
+"    <input type=\"submit\"/>\n" +
+"</form>\n" +
+"<pre>\n" +
+"<messages/>\n" +
+"</pre>\n" +
+"\n" +
+"</body>\n" +
+"</html>";
+    private static final String STR_CHATS = "<!DOCTYPE HTML>\n" +
+"<html>\n" +
+"<head>\n" +
+"    <meta charset=\"utf-8\">\n" +
+"    <title>Chats</title>\n" +
+"</head>\n" +
+"<body>\n" +
+"\n" +
+"<form action=\"actionName\" method=\"POST\" name=\"chatform\">\n" +
+"    <input type=\"text\" name=\"chatTo\" style=\"width: 100%;\"/>\n" +
+"    <textarea          name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"> </textarea>\n" +
+"    <input type=\"submit\"/>\n" +
+"</form>\n" +
+"<pre>\n" +
+"<messages/>\n" +
+"</pre>\n" +
+"\n" +
+"</body>\n" +
+"</html>";
+    
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 }
+/*
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Chats</title>
+</head>
+<body>
+
+<form action="actionName" method="POST" name="chatform">
+    <input type="text" name="chatTo" style="width: 100%;"/>
+    <textarea          name="chatMsg" rows="14" style="width: 100%;" wrap="soft"> </textarea>
+    <input type="submit"/>
+</form>
+<pre>
+<messages/>
+</pre>
+
+</body>
+</html>
+
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>title</title>
+</head>
+<body>
+
+<form action="actionName" method="POST" name="chatform">
+    <textarea            name="chatMsg" rows="14" style="width: 100%;" wrap="soft"> </textarea>
+    <input type="hidden" name="chatTo" value="user"/>
+    <input type="submit"/>
+</form>
+<pre>
+<messages/>
+</pre>
+
+</body>
+</html>
+*/
