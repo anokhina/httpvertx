@@ -324,16 +324,20 @@ public class HttpVerticle extends AbstractVerticle {
         }
         
         {
+            final SimpleSqliteObjectStore ostoreChatDb = 
+                    new SimpleSqliteObjectStore("chatDb.db", 
+                            new ChatHandler.MessageMapper());
+
             String servPath = "/chat/";
             router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
             router.route(servPath+"*").handler(oauth2);
-            router.route(servPath+"*").handler(new ChatHandler());
+            router.route(servPath+"*").handler(new ChatHandler(ostoreChatDb));
         }
         //TODO refresh settings
         
         final SolrIndexer indexer = new SolrIndexer("www");
         final LinkedHashMap<String, WebDescriptor> websList = new LinkedHashMap<>();
-        final SimpleSqliteObjectStore ostore = new SimpleSqliteObjectStore("hashDb.db", new ShareHandler.HashMapper());
+        final SimpleSqliteObjectStore ostoreHashDb = new SimpleSqliteObjectStore("hashDb.db", new ShareHandler.HashMapper());
         if (webs != null) {
             for (Object o : webs) {
                 if (o instanceof JsonObject) {
@@ -383,7 +387,7 @@ public class HttpVerticle extends AbstractVerticle {
                                 rssVerticle = null;
                             }
                             
-                            router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostore));
+                            router.route(wpath+"/ref/*").handler(new ShareUrlHandler(wpathDelim, dirpath, dirpathGen, ostoreHashDb));
                             router.route(wpath+"/*").handler(new RedirectUnAuthParamPageHandler(wpath + "/"));
                             if ("google".equals(authsys)) {
                                 router.route(wpath+"/*").handler(oauth2);
@@ -413,7 +417,7 @@ public class HttpVerticle extends AbstractVerticle {
                             });
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ZipHandler(wpathDelim, dirpath)));
                             router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizerSu, new FileUploadHandler(wpathDelim, dirpath, rssVerticle)));
-                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, dirpathGen, ostore)));
+                            router.route(wpath+"/*").handler( new UserAuthorizedHandler(authorizer, new ShareHandler(wpathDelim, dirpath, dirpathGen, ostoreHashDb)));
                             router.route(wpath+"/*").handler(new UserAuthorizedHandler(authorizer, 
                                     new ThumbHandler(wpath, wpathDelim, dirpath, dirpathThumb, dirpathThumbBig))
                             );
@@ -564,7 +568,7 @@ public class HttpVerticle extends AbstractVerticle {
         router.route("/4all/*").handler(new FreeStaticHandlerImpl().setWebRoot(pubDirFile.getAbsolutePath()));
         
         router.route("/*").handler(ctx -> {
-            ctx.fail(404);
+            if (!ctx.response().ended()) { ctx.fail(404); }
         });
         final LogHandler alertLoger = new LogHandler("alert");
         io.vertx.core.Handler<RoutingContext> failureHandler = ctx -> {
