@@ -111,14 +111,15 @@ public class PassAuth {
             args = new String[] {"salt", "user"};
         }            
         Console console = System.console();
+        String pss = "fake";
         if (console == null) {
-            System.out.println("Couldn't get Console instance");
+            System.out.println("Couldn't get Console instance!s");
         } else {
             System.out.print("Password:");
-            String pss = new String(console.readPassword());
-            PassAuth auth = new PassAuth(args[0]);
-            String hash = auth.getHashString(pss, args[1]);
-            System.err.println(hash);
+            pss = new String(console.readPassword());
         }
+        PassAuth auth = new PassAuth(args[0]);
+        String hash = auth.getHashString(pss, args[1]);
+        System.err.println(hash);
     }
 }
