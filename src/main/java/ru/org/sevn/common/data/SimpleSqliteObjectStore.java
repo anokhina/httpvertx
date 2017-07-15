@@ -144,19 +144,28 @@ public class SimpleSqliteObjectStore {
 
             StringBuilder sb = new StringBuilder();
             sb.append("SELECT * FROM ").append(getTableName()).append(" WHERE ");
-            int j = 0;
-            for (String cn : colName) {
+            for (int j = 0; j < colName.length; j++) {
                 if (j > 0) {
                     sb.append(" and ");
                 }
-                sb.append(cn).append("=? ");
-                j++;
+                if (val[j] instanceof Object[]) {
+                    
+                } else {
+                    sb.append(colName[j]).append("=? ");
+                }
             }
 
             PreparedStatement pstmt = c.prepareStatement(sb.toString());
             try {
+                int j = 0;
                 for (int i = 0; i < colName.length; i++) {
-                    pstmt.setObject(i + 1, val[i]);
+                    if (val[i] instanceof Object[]) {
+                        Object[] btw = (Object[]) val[i];
+                        pstmt.setObject(++j, btw[0]);
+                        pstmt.setObject(++j, btw[1]);
+                    } else {
+                        pstmt.setObject(++j, val[i]);
+                    }
                 }
 
                 ResultSet rs = pstmt.executeQuery();
@@ -226,7 +235,7 @@ public class SimpleSqliteObjectStore {
         }
     }
 
-    protected String getConnectionString() {
+    public String getConnectionString() {
         return "jdbc:sqlite:"+filePath;
     }
     
