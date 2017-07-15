@@ -24,6 +24,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Collection;
@@ -207,18 +208,22 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         
         @Override
         public Collection<Message> getMessages(String uidfrom, String uidto, Date... days) {
-            Date day = new Date();
-            if (days.length > 0 && days[0] != null) {
-                day = days[0];
-            }
             Calendar cfrom = Calendar.getInstance();
             Calendar cto = Calendar.getInstance();
-            cfrom.setTime(day);
-            cfrom.set(Calendar.HOUR_OF_DAY, 0);
-            cfrom.set(Calendar.MINUTE, 0);
-            cfrom.set(Calendar.SECOND, 0);
-            cto.setTime(cfrom.getTime());
-            cto.add(Calendar.DAY_OF_YEAR, 1);
+            if (days.length > 0 && days[0] != null) {
+                cfrom.setTime(days[0]);
+            } else {
+                cfrom.setTime(new Date());
+                cfrom.set(Calendar.HOUR_OF_DAY, 0);
+                cfrom.set(Calendar.MINUTE, 0);
+                cfrom.set(Calendar.SECOND, 0);
+            }
+            if (days.length > 1 && days[1] != null) {
+                cto.setTime(days[1]);
+            } else {
+                cto.setTime(cfrom.getTime());
+                cto.add(Calendar.DAY_OF_YEAR, 1);
+            }
             
             try {
                 return (Collection<Message>)ostore.getObjects(Message.class,
@@ -279,6 +284,22 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         
     }
     
+    private Date parseDate(String s) {
+        ParseException ex = null;
+        try {
+            return dateFormat.parse(s);
+        } catch (ParseException e) {
+            ex = e;
+        }
+        try {
+            return dateFormatShort.parse(s);
+        } catch (ParseException e) {
+            ex = e;
+        }
+        Logger.getLogger(ChatHandler.class.getName()).log(Level.SEVERE, null, ex);
+        return null;
+    }
+    
     @Override
     public void handle(RoutingContext ctx) {
         // store in day
@@ -289,6 +310,14 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         if (ctx.user() instanceof ExtraUser) {
             ExtraUser user = (ExtraUser)ctx.user();
             MultiMap params = ctx.request().params();
+            Date chatDate1 = null;
+            Date chatDate2 = null;
+            if (params.contains("chatDate1")) {
+                chatDate1 = parseDate(params.get("chatDate1"));
+            }
+            if (params.contains("chatDate2")) {
+                chatDate2 = parseDate(params.get("chatDate2"));
+            }
             if (params.contains("chatTo")) {
                 if (params.contains("chatMsg")) {
                     messageStore.addMessage(user.getId(), params.get("chatTo"), params.get("chatMsg"));
@@ -306,7 +335,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 sb.append("<a href=\"?chatTo=").append(params.get("chatTo")).append("\">");
                 sb.append("refresh").append("</a>").append("\n");
                 
-                for(Message m : messageStore.getMessages(user.getId(), params.get("chatTo"))) {
+                for(Message m : messageStore.getMessages(user.getId(), params.get("chatTo"), chatDate1, chatDate2)) {
                     sb.append(dateFormat.format(m.getDate())).append(">>>");
                     sb.append(StringEscapeUtils.escapeHtml(m.getFrom())).append(":");
                     sb.append(addUrls(StringEscapeUtils.escapeHtml(m.getMsg()))).append("\n");
@@ -399,6 +428,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "</body>\n" +
 "</html>";
     
+    private SimpleDateFormat dateFormatShort = new SimpleDateFormat("yyyy-MM-dd");
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 }
 /*
