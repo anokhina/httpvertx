@@ -433,6 +433,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "<html>\n" +
 "<head>\n" +
 "    <meta charset=\"utf-8\">\n" +
+"    <link rel=\"stylesheet\" href=\"/www/css.css\">\n" +
 "    <title>title</title>\n" +
 "</head>\n" +
 "<body>\n" +
@@ -452,6 +453,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "<html>\n" +
 "<head>\n" +
 "    <meta charset=\"utf-8\">\n" +
+"    <link rel=\"stylesheet\" href=\"/www/css.css\">\n" +
 "    <title>Chats</title>\n" +
 "</head>\n" +
 "<body>\n" +
@@ -477,6 +479,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 <html>
 <head>
     <meta charset="utf-8">
+    <link rel="stylesheet" href="/www/css.css">
     <title>Chats</title>
 </head>
 <body>
@@ -497,6 +500,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 <html>
 <head>
     <meta charset="utf-8">
+    <link rel="stylesheet" href="/www/css.css">
     <title>title</title>
 </head>
 <body>
