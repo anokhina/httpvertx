@@ -31,6 +31,7 @@ import org.apache.solr.client.solrj.impl.HttpSolrClient;
 import org.apache.solr.client.solrj.request.AbstractUpdateRequest;
 import org.apache.solr.client.solrj.request.ContentStreamUpdateRequest;
 import org.apache.solr.client.solrj.response.QueryResponse;
+import org.apache.solr.client.solrj.response.SolrPingResponse;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.util.ContentStream;
@@ -66,9 +67,18 @@ bin\solr stop -p 8983﻿
     
     public SolrIndexer(String url, String collection) {
         solrClient = new HttpSolrClient.Builder(url + "/" + collection).build();
-        deleteAll();
+        //deleteAll();
     }
     
+    public boolean isAlive() {
+        try {        
+            SolrPingResponse resp = solrClient.ping();
+            return (resp.getResponse() != null);
+        } catch (SolrServerException | IOException ex) {
+            Logger.getLogger(SolrIndexer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
+    }
     public Throwable deleteAll() {
         try {
             solrClient.deleteByQuery("*:*");

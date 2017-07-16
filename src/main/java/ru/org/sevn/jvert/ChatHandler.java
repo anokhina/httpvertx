@@ -213,10 +213,15 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
             if (days.length > 0 && days[0] != null) {
                 cfrom.setTime(days[0]);
             } else {
-                cfrom.setTime(new Date());
-                cfrom.set(Calendar.HOUR_OF_DAY, 0);
-                cfrom.set(Calendar.MINUTE, 0);
-                cfrom.set(Calendar.SECOND, 0);
+                if (days.length > 1 && days[1] != null) {
+                    cfrom.setTime(days[1]);
+                    cfrom.add(Calendar.DAY_OF_YEAR, -1);
+                } else {
+                    cfrom.setTime(new Date());
+                    cfrom.set(Calendar.HOUR_OF_DAY, 0);
+                    cfrom.set(Calendar.MINUTE, 0);
+                    cfrom.set(Calendar.SECOND, 0);
+                }
             }
             if (days.length > 1 && days[1] != null) {
                 cto.setTime(days[1]);
@@ -284,10 +289,21 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
         
     }
     
+    private String getHtmlDateStr(Date d) {
+        if (d != null) {
+            return dateFormatHHmm.format(d);
+        }
+        return "";
+    }
     private Date parseDate(String s) {
         ParseException ex = null;
         try {
             return dateFormat.parse(s);
+        } catch (ParseException e) {
+            ex = e;
+        }
+        try {
+            return dateFormatHHmm.parse(s);
         } catch (ParseException e) {
             ex = e;
         }
@@ -326,14 +342,39 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 StringBuilder sb = new StringBuilder();
                 //url=http://webdesign.about.com/
                 HttpServerRequest r = ctx.request();
-                String url = r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path() + "?chatTo=" + params.get("chatTo");
+                String url = r.absoluteURI().substring(0, r.absoluteURI().length() - r.uri().length()) + r.path();
 
                 sb.append("Chat\n");
                 sb.append("from:").append(user.getId()).append("\n");
                 sb.append("to  :").append(params.get("chatTo")).append("\n");
                 
-                sb.append("<a href=\"?chatTo=").append(params.get("chatTo")).append("\">");
-                sb.append("refresh").append("</a>").append("\n");
+                //<input type="datetime-local" name="bdaytime">
+                /*
+<p><form action="">
+  From (date and time):
+  <input type="datetime-local" name="chatDate1" value="">
+  To (date and time):
+  <input type="datetime-local" name="chatDate2" value="">                
+  <input type="submit" value="Refresh">
+  <input type="hidden" name="chatTo" value="user"/>
+</form>
+                */
+                String refresh = "<p><form action=\"\">\n" +
+"  From (date and time):\n" +
+"  <input type=\"datetime-local\" name=\"chatDate1\" value=\"\">\n" +
+"  To (date and time):\n" +
+"  <input type=\"datetime-local\" name=\"chatDate2\" value=\"\">                \n" +
+"  <input type=\"submit\" value=\"Refresh\">\n" +
+"  <input type=\"hidden\" name=\"chatTo\" value=\"user\"/>\n" +
+"</form>";
+//                sb.append("<a href=\"").append(r.absoluteURI()).append("\">");
+//                sb.append("refresh").append("</a>").append("\n");
+                sb.append(refresh
+                        .replace("value=\"user\"", "value=\""+params.get("chatTo")+"\"")
+                        .replace("action=\"\"", "action=\""+url+"\"")
+                        .replace("name=\"chatDate1\" value=\"\"", "name=\"chatDate1\" value=\""+getHtmlDateStr(chatDate1)+"\"")
+                        .replace("name=\"chatDate2\" value=\"\"", "name=\"chatDate2\" value=\""+getHtmlDateStr(chatDate2)+"\"")
+                );
                 
                 for(Message m : messageStore.getMessages(user.getId(), params.get("chatTo"), chatDate1, chatDate2)) {
                     sb.append(dateFormat.format(m.getDate())).append(">>>");
@@ -345,7 +386,6 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
                 ctx.response().putHeader("content-type", "text/html").end(
                         STR_CHAT
                                 .replace("action=\"actionName\"", "action=\"\"")
-                                .replace("url='refreshurl'", "url='"+url+"'")
                                 .replace("input type=\"hidden\" name=\"chatTo\" value=\"user\"", "input type=\"hidden\" name=\"chatTo\" value=\""+params.get("chatTo")+"\"")
                                 .replace("<messages/>", sb.toString())                        
                 );
@@ -398,7 +438,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "<body>\n" +
 "\n" +
 "<form action=\"actionName\" method=\"POST\" name=\"chatform\">\n" +
-"    <textarea            name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"> </textarea>\n" +
+"    <textarea            name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"></textarea>\n" +
 "    <input type=\"hidden\" name=\"chatTo\" value=\"user\"/>\n" +
 "    <input type=\"submit\"/>\n" +
 "</form>\n" +
@@ -418,7 +458,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "\n" +
 "<form action=\"actionName\" method=\"POST\" name=\"chatform\">\n" +
 "    <input type=\"text\" name=\"chatTo\" style=\"width: 100%;\"/>\n" +
-"    <textarea          name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"> </textarea>\n" +
+"    <textarea          name=\"chatMsg\" rows=\"14\" style=\"width: 100%;\" wrap=\"soft\"></textarea>\n" +
 "    <input type=\"submit\"/>\n" +
 "</form>\n" +
 "<pre>\n" +
@@ -429,6 +469,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 "</html>";
     
     private SimpleDateFormat dateFormatShort = new SimpleDateFormat("yyyy-MM-dd");
+    private SimpleDateFormat dateFormatHHmm = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm");    
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 }
 /*
@@ -442,7 +483,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 
 <form action="actionName" method="POST" name="chatform">
     <input type="text" name="chatTo" style="width: 100%;"/>
-    <textarea          name="chatMsg" rows="14" style="width: 100%;" wrap="soft"> </textarea>
+    <textarea          name="chatMsg" rows="14" style="width: 100%;" wrap="soft"></textarea>
     <input type="submit"/>
 </form>
 <pre>
@@ -461,7 +502,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
 <body>
 
 <form action="actionName" method="POST" name="chatform">
-    <textarea            name="chatMsg" rows="14" style="width: 100%;" wrap="soft"> </textarea>
+    <textarea            name="chatMsg" rows="14" style="width: 100%;" wrap="soft"></textarea>
     <input type="hidden" name="chatTo" value="user"/>
     <input type="submit"/>
 </form>

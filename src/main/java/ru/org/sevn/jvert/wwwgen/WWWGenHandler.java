@@ -34,14 +34,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.jsoup.Jsoup;
 import ru.org.sevn.common.mime.Mime;
 import ru.org.sevn.common.solr.SolrIndexer;
 import ru.org.sevn.templ.ClasspathVelocityEngine;
@@ -623,7 +620,7 @@ public class WWWGenHandler implements io.vertx.core.Handler<RoutingContext> {
 	}
     
     private void indexContent(final HtmlContent content) {
-        if (indexer != null) {
+        if (indexer != null && indexer.isAlive()) {
             final String filePath = FileUtil.getRelativePath(Menu.getRoot(content.menu).getFile(), content.file);
             //TODO add handler on error
             indexer.addDocAsync(webpath, filePath, 
