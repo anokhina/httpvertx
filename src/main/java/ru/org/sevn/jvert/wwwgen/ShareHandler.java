@@ -97,7 +97,7 @@ public class ShareHandler implements io.vertx.core.Handler<RoutingContext> {
         }
 
         @Override
-        public Class getType() {
+        public Class getObjectType() {
             return Hash.class;
         }
     }

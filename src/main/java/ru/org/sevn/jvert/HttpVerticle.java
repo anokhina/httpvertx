@@ -338,6 +338,19 @@ public class HttpVerticle extends AbstractVerticle {
             router.route(servPath+"*").handler(("google".equals(authSys)) ? oauth2 : authHandlerLogin);
             router.route(servPath+"*").handler(new ChatHandler(ostoreChatDb));
         }
+        {
+            final UrlHandler.UrlSimpleSqliteObjectStore ostoreChatDb = 
+                    new UrlHandler.UrlSimpleSqliteObjectStore("ulinkDb.db", 
+                            new UrlHandler.UrlTagMapper(),
+                            new UrlHandler.UrlLinkMapper(),
+                            new UrlHandler.UrlLinkTagMapper()
+                    );
+
+            String servPath = "/ulnk/";
+            router.route(servPath+"*").handler(new RedirectUnAuthParamPageHandler(servPath));
+            router.route(servPath+"*").handler(("google".equals(authSys)) ? oauth2 : authHandlerLogin);
+            router.route(servPath+"*").handler(new UrlHandler(ostoreChatDb));
+        }
         //TODO refresh settings
         
         final SolrIndexer indexer = new SolrIndexer("www");

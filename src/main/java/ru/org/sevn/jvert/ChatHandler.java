@@ -51,7 +51,7 @@ public class ChatHandler implements io.vertx.core.Handler<RoutingContext> {
     public static class MessageMapper implements SimpleSqliteObjectStore.ObjectMapper<Message> {
 
         @Override
-        public Class getType() {
+        public Class getObjectType() {
             return Message.class;
         }
 

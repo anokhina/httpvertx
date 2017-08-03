@@ -23,7 +23,7 @@ import ru.org.sevn.common.data.SimpleSqliteObjectStore;
 public class HTagMapper implements SimpleSqliteObjectStore.ObjectMapper<HTag> {
 
     @Override
-    public Class getType() {
+    public Class getObjectType() {
         return HTag.class;
     }
 
